@@ -4,6 +4,7 @@ import numpy as np
 import time
 import wfc_implementation
 import mapUtils
+import interfaceUtils
 from worldLoader import WorldSlice
 import math
 
@@ -16,7 +17,17 @@ tiles = wfc_implementation.expandRotations(tiles)
 # w = h = 15
 w = h = 5
 layers = 3
-area = [700, -750, w*5*3, h*5*3]
+area = (700, -750, w*5*3, h*5*3)
+buildArea = interfaceUtils.requestBuildArea()
+if buildArea != -1:
+    x1 = buildArea["xFrom"]
+    z1 = buildArea["zFrom"]
+    x2 = buildArea["xTo"]
+    z2 = buildArea["zTo"]
+    # print(buildArea)
+    area = (x1, z1, int((x2-x1)/15)*15, int((z2-z1)/15)*15)
+print("Build area is at position %s, %s with size %s, %s" % area)
+
 slice = WorldSlice(area)
 strctElmt3x3 = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
 # crossKernel3x3 = np.array([[0,1,0],[1,1,1],[0,1,0])
@@ -95,17 +106,17 @@ for i in range(layers):
                 if buildType == 4:
                     y2 = min(y2, yTerrain)
                 for y in range(y1, y2):
-                    mapUtils.placeBlockBatched(area[0] + x, y, area[1] + z, buildingBlock, 1000)
+                    interfaceUtils.placeBlockBatched(area[0] + x, y, area[1] + z, buildingBlock, 1000)
             
             # railings
             ry = startHeights[1]
             if hrailings[(x,z)]:
-                mapUtils.placeBlockBatched(area[0] + x, ry, area[1] + z, "end_rod[facing=north]", 1000)
+                interfaceUtils.placeBlockBatched(area[0] + x, ry, area[1] + z, "end_rod[facing=north]", 1000)
             elif vrailings[(x,z)]:
-                mapUtils.placeBlockBatched(area[0] + x, ry, area[1] + z, "end_rod[facing=east]", 1000)
+                interfaceUtils.placeBlockBatched(area[0] + x, ry, area[1] + z, "end_rod[facing=east]", 1000)
             elif crailings[(x,z)]:
                 for i in range(2):
-                    mapUtils.placeBlockBatched(area[0] + x, ry - 1 + i, area[1] + z, "gray_concrete", 1000)
+                    interfaceUtils.placeBlockBatched(area[0] + x, ry - 1 + i, area[1] + z, "gray_concrete", 1000)
             # walkway decoration
             wmapVal = int(walkwMap[(x,z)])
             if wmapVal % 2 == 1:
@@ -113,12 +124,12 @@ for i in range(layers):
                 dir = int((wmapVal - 1) / 2)
                 cdir1 = cardinals[dir]
                 cdir2 = cardinals[(dir + 2) % 4]
-                mapUtils.placeBlockBatched(area[0] + x, ry, area[1] + z, "polished_blackstone_stairs[facing=%s]" % cdir1, 1000)
-                mapUtils.placeBlockBatched(area[0] + x, ry+1, area[1] + z, "end_rod[facing=%s]" % cdir2, 1000)
-                mapUtils.placeBlockBatched(area[0] + x, ry+2, area[1] + z, "polished_blackstone_slab", 1000)
+                interfaceUtils.placeBlockBatched(area[0] + x, ry, area[1] + z, "polished_blackstone_stairs[facing=%s]" % cdir1, 1000)
+                interfaceUtils.placeBlockBatched(area[0] + x, ry+1, area[1] + z, "end_rod[facing=%s]" % cdir2, 1000)
+                interfaceUtils.placeBlockBatched(area[0] + x, ry+2, area[1] + z, "polished_blackstone_slab", 1000)
             elif wmapVal % 2 == 0 and wmapVal != 4:
                 # inner corner
                 for i in range(3):
-                    mapUtils.placeBlockBatched(area[0] + x, ry + i, area[1] + z, "polished_blackstone", 1000)
+                    interfaceUtils.placeBlockBatched(area[0] + x, ry + i, area[1] + z, "polished_blackstone", 1000)
 
-    mapUtils.sendBlocks() # send remaining blocks in buffer
+    interfaceUtils.sendBlocks() # send remaining blocks in buffer
