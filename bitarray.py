@@ -7,17 +7,8 @@ def inclusiveBetween(start, end, value):
       raise ValueError("The value %i is not in the inclusive range of %i to %i" % (value, start, end))
 
 
-<<<<<<< HEAD
-# for i in weirdArray:
-#    print('%02x'%i)
-
-'''
-This class was ported from the Minecraft source. Minecraft stores block and heightmap data in compacted arrays of longs. This class does the proper index mapping and bit shifting to get to the actual data.
-'''
-=======
 # Minecraft stores block and heightmap data in compacted arrays of longs. This class does the proper index mapping and bit shifting to get to the actual data.
 
->>>>>>> c7f283f6fd8794a2c4ea3799fc9a8425a93c5f69
 class BitArray:
    def __init__(self, bitsPerEntryIn, arraySizeIn, data):
       inclusiveBetween(1, 32, bitsPerEntryIn)
