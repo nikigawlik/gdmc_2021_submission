@@ -1,6 +1,6 @@
 ## python client scripts for the Minecraft HTTP Interface Mod
 
-This a collection of scripts for demonstrating the [Minecraft HTTP Interface Mod](https://github.com/nilsgawlik/gdmc_http_interface) build for the GDMC competition.
+This a collection of scripts to use with the [Minecraft HTTP Interface Mod](https://github.com/nilsgawlik/gdmc_http_interface) built for the GDMC competition.
 
 Requirements are in requirements.txt. Feel free to use different versions, the versions are just what is installed on my machine.
 
@@ -11,7 +11,3 @@ Scripts:
 **`example.py`**: Demonstrates all of the basic gdmc-http functionality by building a very simple village. It uses the utility functions implemented in `worldLoader.py` and `mapUtils.py`.
 
 **`visualizeMap.py`**: Displays a map of the minecraft world, using OpenCV
-
-### License
-
-License is MIT, except for the bitarray class which is ported from the Minecraft source, so copyright might be in a gray area for now.

@@ -28,13 +28,14 @@ if buildArea != -1:
     area = (x1, z1, int((x2-x1)/15)*15, int((z2-z1)/15)*15)
 print("Build area is at position %s, %s with size %s, %s" % area)
 
-slice = WorldSlice(area)
+worldSlice = WorldSlice(area)
 strctElmt3x3 = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
 # crossKernel3x3 = np.array([[0,1,0],[1,1,1],[0,1,0])
 kernel1x3 = np.array([[1,1,1]])
 kernel3x1 = np.transpose(kernel1x3)
 kernel3x3 = kernel3x1 * kernel1x3
-heightmap = np.array(slice.heightmaps["WORLD_SURFACE"], dtype = np.uint8)
+heightmap = np.array(worldSlice.heightmaps["WORLD_SURFACE"], dtype = np.uint8)
+# heightmap = mapUtils.fractalnoise((area[2], area[3]))
 
 floorWallMappings = [
 #   [f,w,c,s] (floor, wall, ceiling, space)
@@ -72,13 +73,13 @@ for i in range(layers):
     # make it so that walkWMap is '10' at outer corners:
     walkwMap = np.where(walkwoc, 10, walkwMap)
 
-    mapUtils.visualize(walkwMap, walkwoc)
+    # mapUtils.visualize(walkwMap, walkwoc)
 
     image = image + cv2.erode(buildings, strctElmt3x3) * 3 # basically insides of buildings (0) to floor/ceiling (3)
     cv2.rectangle(image, (0,0), (image.shape[0]-1, image.shape[1]-1), (4), 1) # build seawall
 
     # mapUtils.visualize(image, railings, vrailings, hrailings, crailings)
-    mapUtils.visualize(image)
+    # mapUtils.visualize(image)
 
     startHeights = [
         absoluteFloor - 20 if i == 0 else absoluteFloor + 12 * i,
@@ -89,6 +90,7 @@ for i in range(layers):
 
     # cardinals = ["east", "south", "north", "west"]
     cardinals = ["north", "west", "east", "south"]
+    protectedBlocks = ["minecraft:blackstone", "minecraft:gray_concrete"]
 
     # do construction
     for x in range(area[2]):
@@ -99,14 +101,12 @@ for i in range(layers):
             for j in range(len(startHeights) - 1):
                 buildingBlock = "air" if floorWallMappings[buildType][j] == 0 else "gray_concrete" if buildType == 0 or buildType == 3 else "blackstone"
                 y1 = startHeights[j]
-                # TODO this is a hack to allwo overlapping layers, this will not work long term!
-                if j == 0 and buildingBlock == "air":
-                    y1 += 1
                 y2 = startHeights[j + 1]
                 if buildType == 4:
                     y2 = min(y2, yTerrain)
                 for y in range(y1, y2):
-                    interfaceUtils.placeBlockBatched(area[0] + x, y, area[1] + z, buildingBlock, 1000)
+                    if not worldSlice.getBlockAt((area[0] + x, y, area[1] + z)) in protectedBlocks:
+                        interfaceUtils.placeBlockBatched(area[0] + x, y, area[1] + z, buildingBlock, 1000)
             
             # railings
             ry = startHeights[1]
