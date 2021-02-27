@@ -14,6 +14,9 @@ rng = np.random.default_rng()
 
 minecraft_colors  = ["white", "orange", "magenta", "light_blue", "yellow", "lime", "pink", "gray", "light_gray", "cyan", "purple", "blue", "brown", "green", "red", "black"]
 
+def noise(shape, noiseshape, interpolation=cv2.INTER_LINEAR):
+    nse = rng.random(noiseshape[0] * noiseshape[1], dtype = np.float64).reshape(noiseshape)
+    return cv2.resize(nse, shape[::-1], interpolation=interpolation)
 
 def fractalnoise(shape, minFreq=0, maxFreq=0):
     """creates a array of size <shape> filled with perlin-noise (might not technically be perlin noise?). The noise is created by starting with a 1x1 noise, upsampling it by 2, then adding a 2x2 noise, upsampling again, then 4x4, etc. until a big enough size is reached and it's cropped down to the correct size.
@@ -73,6 +76,7 @@ def normalize(array):
 
 def visualize(*arrays, title=None, autonormalize=True):
     for array in arrays:
+        array = array * 1
         if autonormalize:
             array = (normalize(array) * 255).astype(np.uint8)
 
@@ -83,13 +87,13 @@ def visualize(*arrays, title=None, autonormalize=True):
         imgplot = plt.imshow(plt_image)
     plt.show()
 
-# def showAnimationFrame(array, title=None, autonormalize=True):
-#     time.sleep(0.05)
-#     if autonormalize:
-#         array = (normalize(array) * 255).astype(np.uint8)
-#     # frame = cv2.resize(frame, (500,500), interpolation=cv2.INTER_NEAREST)
-#     cv2.imshow(title, array)
-    # cv2.waitKey()
+def showAnimationFrame(array, title=None, autonormalize=True):
+    time.sleep(0.05)
+    if autonormalize:
+        array = (normalize(array) * 255).astype(np.uint8)
+    # frame = cv2.resize(frame, (500,500), interpolation=cv2.INTER_NEAREST)
+    cv2.imshow(title, array)
+    cv2.waitKey()
     # cv2.destroyAllWindows()
 
 def calcGoodHeightmap(worldSlice):    

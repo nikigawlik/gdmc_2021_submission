@@ -44,10 +44,12 @@ def sendBlocks(x=0, y=0, z=0, retries=5):
         response = requests.put(url, body)
         clearBlockBuffer()
         return response.text
-    except ConnectionError as e:
+    except (ConnectionError, requests.ConnectionError) as e:
         print("Request failed: %s Retrying (%i left)" % (e, retries))
         if retries > 0:
             return sendBlocks(x,y,z, retries - 1)
+        else:
+            raise e
 
 def placeBlockBatched(x, y, z, str, limit=50):
     registerSetBlock(x, y, z, str)
@@ -66,7 +68,11 @@ def runCommand(command):
     return response.text
 
 def requestBuildArea():
-    response = requests.get('http://localhost:9000/buildarea')
+    try:
+        response = requests.get('http://localhost:9000/buildarea')
+    except (ConnectionError, requests.ConnectionError) as e:
+        return -1
+
     if response.ok:
         return response.json()
     else:

@@ -103,7 +103,7 @@ def wfcGenerator(tiles, w, h, initialTile=0):
 
     tileW = tiles.shape[1]
     tileH = tiles.shape[2]
-    image = np.ones((w * tileW, h * tileH), np.int) * initialTile
+    image = np.ones((h * tileH, w * tileW), np.int) * initialTile
     yield image
     while(True): 
         yield image # always the same image! but we still yield it just in case
@@ -125,7 +125,7 @@ def wfcGenerator(tiles, w, h, initialTile=0):
         possibilitySpace[tuple(p)] = np.zeros(n) # reset to 0
         possibilityBuffer[tuple(p)] = n+1
         imgP = p * [tileW, tileH]
-        image[imgP[1] : imgP[1]+tileH, imgP[0] : imgP[0] + tileW] = tiles[tileIndex] # "place" the tile
+        image[imgP[1] : imgP[1] + tileH, imgP[0] : imgP[0] + tileW] = tiles[tileIndex] # "place" the tile
         
         # update neighbors with propagator
         for d in range(4): 
