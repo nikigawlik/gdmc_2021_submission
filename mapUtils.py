@@ -18,6 +18,9 @@ rng = np.random.default_rng()
 
 minecraft_colors  = ["white", "orange", "magenta", "light_blue", "yellow", "lime", "pink", "gray", "light_gray", "cyan", "purple", "blue", "brown", "green", "red", "black"]
 
+minecraft_woods = ["oak", "spruce", "birch", "acacia", "dark_oak", "jungle"]
+
+
 def noise(shape, noiseshape, interpolation=cv2.INTER_LINEAR):
     nse = rng.random(noiseshape[0] * noiseshape[1], dtype = np.float64).reshape(noiseshape)
     return cv2.resize(nse, shape[::-1], interpolation=interpolation)
@@ -74,6 +77,7 @@ def angleToCenter(shape):
         raise ValueError("Shape needs to have length 2. Only 2d is supported")
     
     return np.array([[atan2(y/shape[1]-0.5, x/shape[0]-0.5) for x in range(shape[0])] for y in range(shape[1])])
+
 
 def normalize(array):
     return (array - array.min()) / (array.max() - array.min())
@@ -149,3 +153,8 @@ def visualize(*arrays, title=None, autonormalize=True):
 def normalize(array):
     """**Normalizes the array to contain values from 0 to 1.**"""
     return (array - array.min()) / (array.max() - array.min())
+
+
+def listWhere(array): 
+    tupleList = np.where(array)
+    return list(zip(tupleList[0], tupleList[1]))

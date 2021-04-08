@@ -14,6 +14,10 @@ __all__ = []
 
 import random
 
+import cv2
+from matplotlib import pyplot
+import numpy as np
+
 import interfaceUtils
 import mapUtils
 from worldLoader import WorldSlice
@@ -26,6 +30,9 @@ area = (0, 0, 128, 128)  # default build area
 
 # see if a build area has been specified
 # you can set a build area in minecraft using the /setbuildarea command
+
+interfaceUtils.runCommand("execute at @p run setbuildarea ~-64 0 ~-64 ~64 256 ~64")
+
 buildArea = interfaceUtils.requestBuildArea()
 if buildArea != -1:
     x1 = buildArea["xFrom"]
@@ -109,6 +116,23 @@ if __name__ == '__main__':
 
     # calculate a heightmap suitable for building:
     heightmap = mapUtils.calcGoodHeightmap(worldSlice)
+    heightmap = heightmap.astype(np.uint8)
+
+    hmo = heightmap
+
+    heightmap = cv2.medianBlur(heightmap, 13)
+
+    # structElmt = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+    # heightmap = cv2.erode(heightmap, structElmt)
+    # heightmap = cv2.dilate(heightmap, structElmt)
+
+    # hist	=	cv2.calcHist([heightmap], [0], None, [256], [0, 256])
+    # histo	=	cv2.calcHist([hmo], [0], None, [256], [0, 256])
+    # pyplot.plot(histo)
+    # pyplot.plot(hist)
+    # pyplot.show()
+
+    # mapUtils.visualize(hmo, heightmap)
 
     # example alternative heightmaps:
     # >>> heightmap = worldSlice.heightmaps["MOTION_BLOCKING"]

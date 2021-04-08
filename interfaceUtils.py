@@ -12,7 +12,10 @@ __all__ = ['requestBuildArea', 'runCommand',
            'placeBlockBatched', 'sendBlocks']
 # __version__
 
+from random import randrange
+from numpy.lib.function_base import place
 import requests
+from mapUtils import minecraft_colors
 
 
 def requestBuildArea():
@@ -105,3 +108,55 @@ def clearBlockBuffer():
     """**Clears the block buffer.**"""
     global blockBuffer
     blockBuffer = []
+
+def randomWool():
+    return f"{minecraft_colors[randrange(len(minecraft_colors))]}_wool"
+
+def buildWireCube(x, y, z, sx, sy, sz, blockID = None):
+    blockID = randomWool() if blockID is None else blockID
+
+    for i in range(sx):
+        placeBlockBatched(x + i, y, z, blockID)
+    for i in range(sy):
+        placeBlockBatched(x, y + i, z, blockID)
+    for i in range(sz):
+        placeBlockBatched(x, y, z + i, blockID)
+    for i in range(sy):
+        placeBlockBatched(x + sx - 1, y + i, z, blockID)
+    for i in range(sz):
+        placeBlockBatched(x + sx - 1, y, z + i, blockID)
+    for i in range(sx):
+        placeBlockBatched(x + i, y + sy - 1, z, blockID)
+    for i in range(sz):
+        placeBlockBatched(x, y + sy - 1, z + i, blockID)
+    for i in range(sx):
+        placeBlockBatched(x + i, y, z + sz - 1, blockID)
+    for i in range(sy):
+        placeBlockBatched(x, y + i, z + sz - 1, blockID)
+    for i in range(sx):
+        placeBlockBatched(x + i, y + sy - 1, z + sz - 1, blockID)
+    for i in range(sy):
+        placeBlockBatched(x + sx - 1, y + i, z + sz - 1, blockID)
+    for i in range(sz):
+        placeBlockBatched(x + sx - 1, y + sy - 1, z + i, blockID)
+
+
+def buildSolidCube(x, y, z, sx, sy, sz, blockID = None):
+    blockID = randomWool() if blockID is None else blockID
+    # blockID = "light_gray_concrete"
+
+
+    for yy in range(y, y+sy):
+        for xx in range(x, x+sx):
+            for zz in range(z, z+sz):
+                placeBlockBatched(xx, yy, zz, blockID)
+
+def buildHollowCube(x, y, z, sx, sy, sz, blockID = None):
+    blockID = randomWool() if blockID is None else blockID
+    # blockID = "light_gray_concrete"
+
+    for yy in range(y, y+sy):
+        for xx in range(x, x+sx):
+            for zz in range(z, z+sz):
+                if xx == x or yy == y or zz == z or xx == x+sx-1 or yy == y+sy-1 or zz == z+sz-1:
+                    placeBlockBatched(xx, yy, zz, blockID)
