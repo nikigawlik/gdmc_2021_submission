@@ -1,6 +1,6 @@
 from functools import reduce
 from math import cos, sin
-from random import random, randrange
+from random import randint, random, randrange
 import cv2
 import numpy as np
 from numpy.core.shape_base import block
@@ -121,10 +121,10 @@ cv2.rectangle(borderMap, (0, 0), (area[3]-1, area[2]-1), (1), 3)
 maxHeight = 150
 minHeight = heightmap.min()
 
-# traversability cache
+# block cache
 # 0 = completely free
 # 255 = blocked
-traversability = np.zeros((area[2], maxHeight-minHeight, area[3]), dtype=np.uint8)
+blockCache = np.zeros((area[2], maxHeight-minHeight, area[3]), dtype=np.uint8)
 
 # traffic 
 # 0 = indifferent
@@ -132,6 +132,8 @@ traversability = np.zeros((area[2], maxHeight-minHeight, area[3]), dtype=np.uint
 traffic = np.zeros((area[2], maxHeight-minHeight, area[3]), dtype=np.uint8)
 
 maxBoxWidth = (area[2] - 3, area[3] - 3)
+
+BUILD = True    
 
 for i in range(100):
     if i == -1:
@@ -143,24 +145,25 @@ for i in range(100):
     else:
         sx = randrange(7, min(21, maxBoxWidth[0]))
         sz = randrange(7, min(21, maxBoxWidth[1]))
-        sy = 1 if random() < .2 else randrange(5, 9)
+        sy = randint(1, 3) * 6 # 1, 2 or 3 floors high
 
     offset = (int(sx/2), int(sz/2))
     
-    gap = 4 # randrange(2,6)
-    strctElmt = cv2.getStructuringElement(cv2.MORPH_RECT, (sz + 2*gap, sx + 2*gap))
+    gap = randrange(0,5)
+    strctCross = cv2.getStructuringElement(cv2.MORPH_RECT, (sz + 2*gap, sx + 2*gap))
     anchor = (offset[1] + gap, offset[0] + gap)
-    mhm = cv2.dilate(buildingsOnlyHeightmap, strctElmt, anchor=anchor)
+    mhm = cv2.dilate(buildingsOnlyHeightmap, strctCross, anchor=anchor)
 
-    dilatedBorderMap = cv2.dilate(borderMap, strctElmt, anchor=anchor)
-    dilatedHeightmap = cv2.dilate(heightmap, strctElmt, anchor=anchor)
+    dilatedBorderMap = cv2.dilate(borderMap, strctCross, anchor=anchor)
+    dilatedHeightmap = cv2.dilate(heightmap, strctCross, anchor=anchor)
 
-    desiredBuildPosMap = (mhm == buildingsOnlyHeightmap) * (forbiddenMap == 0) * (dilatedBorderMap == 0) * (255-dilatedHeightmap)
-    maxi = desiredBuildPosMap.max()
-    if maxi == 0:
-        raise Exception("lol no space") # TODO obv
+    # desiredBuildPosMap = (mhm == buildingsOnlyHeightmap) * (forbiddenMap == 0) * (dilatedBorderMap == 0) * (255-dilatedHeightmap)
+    # maxi = desiredBuildPosMap.max()
+    # if maxi == 0:
+    #     raise Exception("lol no space") # TODO obv
 
-    buildPositions = listWhere(desiredBuildPosMap == maxi)
+    # buildPositions = listWhere(desiredBuildPosMap == maxi)
+    buildPositions = listWhere((mhm == buildingsOnlyHeightmap) & (forbiddenMap == 0) & (dilatedBorderMap == 0))
 
     lastBoxPos = (boxes[-1][0], boxes[-1][1], boxes[-1][2]) if len(boxes) > 0 else (int(area[2]/2), 0, int(area[3]/2))
     distSquared = lambda p1: (p1[0] - lastBoxPos[0])**2 + (dilatedHeightmap[p1] - lastBoxPos[2])**2 * 100 + (p1[1] - lastBoxPos[2])**2
@@ -179,6 +182,16 @@ for i in range(100):
     cz = p[1] - offset[1]
     
     y = dilatedHeightmap[dx, dz]
+    y = y - y%3
+
+    # randomly turn it into a platform
+    if random() < .2:
+        y = y + sy - 1
+        sy = 1
+
+    if y + sy >= maxHeight:
+        continue
+
     boxes.append([dx, y, dz, sx, sy, sz]) # local space! center pos
 
     # x,y,z are corner pos
@@ -187,7 +200,6 @@ for i in range(100):
 
     print(f"build cube at {(x, y, z)}")
 
-    BUILD = False
     # pillars
     for rx in range(2):
         for rz in range(2):
@@ -198,13 +210,13 @@ for i in range(100):
                 if BUILD:
                     interfaceUtils.placeBlockBatched(area[0] + xx, yy, area[1] + zz, "gray_wool")
 
-            traversability[xx, (yFloor-minHeight):(y-minHeight), zz] = 255
+            blockCache[xx, (yFloor-minHeight):(y-minHeight), zz] = 1
 
     if BUILD:
-        if i == 0:
-            interfaceUtils.buildWireCube(x, y, z, sx, sy, sz)
-        else:
-            interfaceUtils.buildHollowCube(x, y, z, sx, sy, sz)
+        # if i == 0:
+        interfaceUtils.buildWireCube(x, y, z, sx, sy, sz)
+        # else:
+        #     interfaceUtils.buildHollowCube(x, y, z, sx, sy, sz)
 
     # color = minecraft_colors[(y)%16]
     # interfaceUtils.buildSolidCube(x, y, z, sx, 1, sz, f"{color}_wool") # floor
@@ -219,12 +231,9 @@ for i in range(100):
     buildingsOnlyHeightmap[cx:cx+sx, cz:cz+sz] = bheight
 
 
+    dy = y - minHeight
     # block out walls
-    traversability[cx:cx+sx, (y-minHeight+1):(y+sy-minHeight-1), cz:cz+sz] = 255
-    # allow floor
-    traversability[cx:cx+sx, y-minHeight, cz:cz+sz] = 0
-    # allow roof
-    traversability[cx:cx+sx, y+sy-minHeight-1, cz:cz+sz] = 0
+    blockCache[cx:cx+sx, (dy):(dy+sy), cz:cz+sz] = 1
     # encourage roof
     traffic[cx:cx+sx, y+sy-minHeight-1, cz:cz+sz] = 128
 
@@ -239,47 +248,128 @@ for i in range(100):
     img[dx, dz] = 230
     img = cv2.resize(img, (img.shape[1] * 4, img.shape[0] * 4), interpolation=cv2.INTER_NEAREST)
     cv2.imshow("img", img)
-    # cv2.waitKey(0 if i == 0 else 1)
-    cv2.waitKey(1)
+    cv2.waitKey(0 if i == 0 else 1)
+    # cv2.waitKey(1)
 
 
 # test
 
 cv2.namedWindow("slices", 0)
 cv2.resizeWindow("slices", int(heightmap.shape[1] / heightmap.shape[0] * 512), 512)
+cv2.namedWindow("lastLayer", 0)
+cv2.resizeWindow("lastLayer", int(heightmap.shape[1] / heightmap.shape[0] * 512), 512)
+cv2.namedWindow("bCache", 0)
+cv2.resizeWindow("bCache", int(heightmap.shape[1] / heightmap.shape[0] * 512), 512)
 
-strctElmt = cv2.getStructuringElement(cv2.MORPH_RECT, (3,3))
+
+dilSize = 10
+walkwayWidth = 4
+kSize = dilSize * 2 + 1
+strctBigCirc = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (kSize,kSize))
+strctCross = cv2.getStructuringElement(cv2.MORPH_CROSS, (3,3))
+# strctMedCirc = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7,7))
+traversible = blockCache == 0
+
+
+# BUILD = False
+
+heightmap = np.array(originalHeightmap)
+
+lastLayer = np.zeros((3, area[2], area[3]), np.uint8)
+lastLayerY = -1
+
 for i in range(maxHeight - minHeight):
-    r = traversability[:,i,:]
-    g = (originalHeightmap > i + minHeight).astype(np.uint8) * 255
-    b = traffic[:,i,:]
+    # pathway maps
+    # TODO think about lowest and heighest layer instead of just excluding them?
+    if i > 0 and i < maxHeight - minHeight - 1:
+        free = traversible[:,i,:] & traversible[:,i+1,:]
+        blocked = ~free
+        ground = ~traversible[:,i-1,:] & free
 
-    img = cv2.merge((b, g, r))
-    img = img.astype(np.uint8)
-    img = cv2.resize(img, (img.shape[1] * 4, img.shape[0] * 4), interpolation=cv2.INTER_NEAREST)
-    cv2.imshow("slices", img)
-    cv2.waitKey(1)
+        # platforms
+        platform = ground.astype(np.uint8)
+        padWidth = dilSize + 1
+        platform = np.pad(platform, (padWidth, padWidth), mode='constant') 
+        platform = cv2.dilate(platform, strctBigCirc)
+        platform = cv2.erode(platform, strctCross, iterations=(dilSize - walkwayWidth - 1))
+
+        # # 'distance erode'
+        # for j in range(walkwayWidth - 1):
+        #     platform = np.maximum(cv2.erode(platform+1, strctCross), platform)-1
+
+        # platform /= walkwayWidth
+
+        platform = platform[padWidth:-padWidth, padWidth:-padWidth]
+        
+        # actualHeight = y + platform
+        y = minHeight + i - 1 
+        diffToHM = np.maximum(0, y - heightmap) * platform
+        diffToHM = cv2.bitwise_and(diffToHM, 0b01111111) # fix underflows
+
+        # platform = np.where(diffToHM > 0, platform, walkwayWidth * np.sign(platform))
+
+        platform = (free & ~ground) * platform
+
+        blockCache[:,i-1,:] |= platform > 0
+
+        heightmap = np.where(blockCache[:,i-1,:] > 0, y-1, heightmap)
+        cv2.imshow("bCache", heightmap)
+
+        # visualize
+        r = blocked.astype(np.uint8) * 255
+        g = ground.astype(np.uint8) * 255 
+        b = platform.astype(np.uint8) * int(255 / walkwayWidth)
+        # b = (originalHeightmap > i + minHeight).astype(np.uint8) * 255
+
+        bgr = cv2.merge((b, g, r))
+
+        cv2.imshow("slices", bgr)
+        cv2.imshow("lastLayer", np.transpose(lastLayer, [1,2,0]) * 255)
+        cv2.waitKey(0 if i==1 else 1)
+
+        # build layer if necessary
+        if platform.max() > 0:
+            blockPositions = np.where(platform > 0)
+            foundation = np.where(diffToHM > 4, 0, diffToHM)
+            y = minHeight + i - 1
+            for p in zip(*blockPositions):
+                # y += -walkwayWidth + platform[p]
+                x = area[0] + p[0]
+                z = area[1] + p[1]
+                for yy in range(y-foundation[p], y+1):
+                    if BUILD:
+                        interfaceUtils.placeBlockBatched(x, yy, z, "gray_wool", 400)
+
+            lastLayerY = y
+            lastLayer[0,:,:] = blocked.astype(np.uint8)
+            lastLayer[1,:,:] = ground.astype(np.uint8)
+            lastLayer[2,:,:] = platform
+        interfaceUtils.sendBlocks()
+
+
 
 cv2.destroyAllWindows()
-
+interfaceUtils.sendBlocks()
 
 # step 4 - traversability
+POINTCLOUD = False
 
-agentN = 100
-# agentPos = (rng.random((agentN, 3)) * np.array(traversability.shape)).astype(np.int)
- 
-agentPos = np.transpose(np.array(np.where(traffic > 0)))
-pointcloud = agentPos[:,[0,2,1]]
+if POINTCLOUD:
+    agentN = 100
+    # agentPos = (rng.random((agentN, 3)) * np.array(traversability.shape)).astype(np.int)
+    
+    agentPos = np.transpose(np.array(np.where(traffic > 0)))
+    pointcloud = agentPos[:,[0,2,1]]
 
-sortedBoxes = sorted(boxes, key = lambda box: box[1])
-delta = int(len(boxes) / 7)
-layers = [box[1] for box in sortedBoxes[::delta]]
-print(layers)
+    sortedBoxes = sorted(boxes, key = lambda box: box[1])
+    delta = int(len(boxes) / 7)
+    layers = [box[1] for box in sortedBoxes[::delta]]
+    print(layers)
 
-pointcolors = np.ones((pointcloud.shape[0], 3)) * np.array([1,1,0])
-v = pptk.viewer(pointcloud, pointcolors)
-v.wait()
-v.close()
+    pointcolors = np.ones((pointcloud.shape[0], 3)) * np.array([1,1,0])
+    v = pptk.viewer(pointcloud, pointcolors)
+    v.wait()
+    v.close()
 
 # step 5 - population
 

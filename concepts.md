@@ -75,3 +75,7 @@ n x n pathfinding algorithm!
     - agent checks areas forward, left and right to make a decision, but prefers forward
   - mark path on cost map -> path as good, walk spaces as bad
   - diffuse cost map
+
+
+Current state of platforms :O)
+   - 
