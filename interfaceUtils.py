@@ -17,11 +17,12 @@ from numpy.lib.function_base import place
 import requests
 from mapUtils import minecraft_colors
 
+session = requests.Session()
 
 def requestBuildArea():
     """**Requests a build area and returns it as an dictionary containing 
     the keys xFrom, yFrom, zFrom, xTo, yTo and zTo**"""
-    response = requests.get('http://localhost:9000/buildarea')
+    response = session.get('http://localhost:9000/buildarea')
     if response.ok:
         return response.json()
     else:
@@ -34,7 +35,7 @@ def runCommand(command):
     # print("running cmd " + command)
     url = 'http://localhost:9000/command'
     try:
-        response = requests.post(url, bytes(command, "utf-8"))
+        response = session.post(url, bytes(command, "utf-8"))
     except ConnectionError:
         return "connection error"
     return response.text
@@ -47,7 +48,7 @@ def getBlock(x, y, z):
     url = f'http://localhost:9000/blocks?x={x}&y={y}&z={z}'
     # print(url)
     try:
-        response = requests.get(url)
+        response = session.get(url)
     except ConnectionError:
         return "minecraft:void_air"
     return response.text
@@ -59,7 +60,7 @@ def setBlock(x, y, z, str):
     url = f'http://localhost:9000/blocks?x={x}&y={y}&z={z}'
     # print('setting block {} at {} {} {}'.format(str, x, y, z))
     try:
-        response = requests.put(url, str)
+        response = session.put(url, str)
     except ConnectionError:
         return "0"
     return response.text
@@ -86,7 +87,7 @@ def sendBlocks(x=0, y=0, z=0, retries=5):
     body = str.join("\n", ['~{} ~{} ~{} {}'.format(*bp) for bp in blockBuffer])
     url = f'http://localhost:9000/blocks?x={x}&y={y}&z={z}'
     try:
-        response = requests.put(url, body)
+        response = session.put(url, body)
         clearBlockBuffer()
         return response.text
     except (ConnectionError, requests.ConnectionError) as e:
