@@ -38,8 +38,8 @@ def fractalnoise(shape, minFreq=0, maxFreq=0):
     Returns:
         ndarray of shape <shape>, of type float64 with values between 0 and 1
     """
-    if len(shape) != 2:
-        raise ValueError("Shape needs to have length 2. Only 2d noise is supported")
+    # if len(shape) != 2:
+    #     raise ValueError("Shape needs to have length 2. Only 2d noise is supported")
 
     depth = ceil(log2(max(shape)))
 

@@ -270,25 +270,16 @@ agentN = 100
  
 agentPos = np.transpose(np.array(np.where(traffic > 0)))
 pointcloud = agentPos[:,[0,2,1]]
+
+sortedBoxes = sorted(boxes, key = lambda box: box[1])
+delta = int(len(boxes) / 7)
+layers = [box[1] for box in sortedBoxes[::delta]]
+print(layers)
+
 pointcolors = np.ones((pointcloud.shape[0], 3)) * np.array([1,1,0])
-v = None
-
-for i in range(10000):
-    if i%100 == 0:
-        pointcloud = agentPos[:,[0,2,1]]
-        if v is not None:
-            v.wait()
-            v.close()
-
-        v = pptk.viewer(pointcloud, pointcolors)
-        v.set(point_size = 0.1)
-        
-    delta = (rng.random(agentPos.shape) * 3).astype(np.int) - 1
-    newPos = agentPos + delta
-    newPos = np.clip(newPos, [0, 0, 0], np.array(traversability.shape) - 1)
-    free = (traversability[newPos[:,0], newPos[:,1], newPos[:,2]] < 255).reshape(newPos.shape[0], 1)
-    agentPos = np.where(free, newPos, agentPos)
-
+v = pptk.viewer(pointcloud, pointcolors)
+v.wait()
+v.close()
 
 # step 5 - population
 
