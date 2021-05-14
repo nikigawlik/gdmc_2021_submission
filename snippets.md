@@ -69,3 +69,25 @@ if DO_BLOCK_ANA:
         #     platform = np.maximum(cv2.erode(platform+1, strctCross), platform)-1
 
         # platform /= walkwayWidth
+
+
+
+# agent pointcloud
+POINTCLOUD = False
+
+if POINTCLOUD:
+    agentN = 100
+    # agentPos = (rng.random((agentN, 3)) * np.array(traversability.shape)).astype(np.int)
+    
+    agentPos = np.transpose(np.array(np.where(traffic > 0)))
+    pointcloud = agentPos[:,[0,2,1]]
+
+    sortedBoxes = sorted(boxes, key = lambda box: box[1])
+    delta = int(len(boxes) / 7)
+    layers = [box[1] for box in sortedBoxes[::delta]]
+    print(layers)
+
+    pointcolors = np.ones((pointcloud.shape[0], 3)) * np.array([1,1,0])
+    v = pptk.viewer(pointcloud, pointcolors)
+    v.wait()
+    v.close()

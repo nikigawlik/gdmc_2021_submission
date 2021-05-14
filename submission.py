@@ -85,18 +85,14 @@ minHeight = heightmap.min()
 
 # block cache
 # 0 = completely free
-# 255 = blocked
+# 1 = blocked
 blockCache = np.zeros((area[2], maxHeight-minHeight, area[3]), dtype=np.uint8)
-
-# traffic 
-# 0 = indifferent
-# 255 = go here it's the place to be
-traffic = np.zeros((area[2], maxHeight-minHeight, area[3]), dtype=np.uint8)
 
 maxBoxWidth = (area[2] - 3, area[3] - 3)
 
 BUILD = True    
 
+# place 100 boxes
 for i in range(100):
     if i == -1:
         # elevator shaft box
@@ -314,24 +310,7 @@ cv2.destroyAllWindows()
 interfaceUtils.sendBlocks()
 
 # step 4 - traversability
-POINTCLOUD = False
 
-if POINTCLOUD:
-    agentN = 100
-    # agentPos = (rng.random((agentN, 3)) * np.array(traversability.shape)).astype(np.int)
-    
-    agentPos = np.transpose(np.array(np.where(traffic > 0)))
-    pointcloud = agentPos[:,[0,2,1]]
-
-    sortedBoxes = sorted(boxes, key = lambda box: box[1])
-    delta = int(len(boxes) / 7)
-    layers = [box[1] for box in sortedBoxes[::delta]]
-    print(layers)
-
-    pointcolors = np.ones((pointcloud.shape[0], 3)) * np.array([1,1,0])
-    v = pptk.viewer(pointcloud, pointcolors)
-    v.wait()
-    v.close()
 
 # step 5 - population
 
