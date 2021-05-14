@@ -36,6 +36,8 @@ heightmap = calcGoodHeightmap(worldSlice)
 heightmap = heightmap.astype(np.uint8)
 baseheight = cv2.medianBlur(heightmap, 13)
 
+areaShape = heightmap.shape
+
 originalHeightmap = np.array(heightmap)
 
 # big cube
@@ -58,44 +60,10 @@ if DO_BLOCK_ANA:
             paletteLookup["minecraft:" + blockID] = i
 
     unknownID = max(blockGroups.keys()) + 1
-
     unknownBlocks = set() # for diagnostic purposes 
 
-    blockIDMap = np.ones((128, 128, 128), dtype=np.uint8) * unknownID
+    blockIDMap = np.ones(areaShape, dtype=np.uint8) * unknownID
 
-    for dy in range(128):
-        y = 64 + dy
-        print(f"processing layer {dy}/128")
-        for dx in range(128):
-            x = area[0] + dx
-            for dz in range(128):
-                z = area[1] + dz
-                
-                blockID = worldSlice.getBlockAt((x, y, z))
-                numID = paletteLookup.get(blockID, 255)
-                if numID == 255:
-                    unknownBlocks.add(blockID)
-                else:
-                    blockIDMap[dx, dy, dz] = numID 
-
-    print(f"unknown blocks: {unknownBlocks}")
-
-    def flattenCube():
-        result = np.zeros((128 * 16, 128 * 8))
-        for n in range(8):
-            for m in range(16):
-                i = 16 * n + m
-                print(f"drawing layer {i}/128")
-                dx1 = m*128
-                dx2 = (m+1)*128
-                dz1 = n*128
-                dz2 = (n+1)*128
-                result[dx1:dx2, dz1:dz2] = blockIDMap[:,i,:]
-        return result
-
-    flattened = flattenCube()
-    flattened = np.transpose(flattened)
-    visualize(flattened)
 
 # step 3 - construction
 rng = np.random.default_rng()
@@ -111,7 +79,6 @@ borderMap = np.zeros(heightmap.shape, dtype=np.uint8)
 cv2.rectangle(borderMap, (0, 0), (area[3]-1, area[2]-1), (1), 3)
 
 # visualize(heightmap)
-# TODO refactor to use more vecors, less tuples
 
 maxHeight = 150
 minHeight = heightmap.min()
