@@ -22,21 +22,16 @@ import pptk
 w = 96
 h = 96
 interfaceUtils.runCommand(f"execute at @p run setbuildarea ~-{int(w/2)} 0 ~-{int(h/2)} ~{int(w/2)} 256 ~{int(h/2)}")
+interfaceUtils.setBuffering(True)
 
 # 2D build area
-buildArea = interfaceUtils.requestBuildArea()
-if buildArea != -1:
-    x1 = buildArea["xFrom"]
-    z1 = buildArea["zFrom"]
-    x2 = buildArea["xTo"]
-    z2 = buildArea["zTo"]
-    # print(buildArea)
-    area = (x1, z1, x2 - x1, z2 - z1)
+x1, y1, z1, x2, y2, z2 = interfaceUtils.requestBuildArea()
+area = (x1, z1, x2 - x1, z2 - z1)
 
 
 # step 2 - analysis
 
-worldSlice = WorldSlice(area, ["MOTION_BLOCKING_NO_LEAVES"])
+worldSlice = WorldSlice(x1, z1, x2, z2, ["MOTION_BLOCKING_NO_LEAVES"])
 heightmap = calcGoodHeightmap(worldSlice)
 heightmap = heightmap.astype(np.uint8)
 baseheight = cv2.medianBlur(heightmap, 13)
@@ -208,7 +203,7 @@ for i in range(100):
             yFloor = heightmap[xx, zz]
             for yy in range(yFloor, y):
                 if BUILD:
-                    interfaceUtils.placeBlockBatched(area[0] + xx, yy, area[1] + zz, "gray_wool")
+                    interfaceUtils.setBlock(area[0] + xx, yy, area[1] + zz, "gray_wool")
 
             blockCache[xx, (yFloor-minHeight):(y-minHeight), zz] = 1
 
@@ -338,7 +333,7 @@ for i in range(maxHeight - minHeight):
                 z = area[1] + p[1]
                 for yy in range(y-foundation[p], y+1):
                     if BUILD:
-                        interfaceUtils.placeBlockBatched(x, yy, z, "gray_wool", 400)
+                        interfaceUtils.setBlock(x, yy, z, "gray_wool")
 
             lastLayerY = y
             lastLayer[0,:,:] = blocked.astype(np.uint8)

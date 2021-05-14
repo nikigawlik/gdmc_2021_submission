@@ -14,8 +14,8 @@ from math import ceil, log2
 import nbt
 import numpy as np
 import requests
+import time
 from bitarray import BitArray
-
 
 def getChunks(x, z, dx, dz, rtype='text'):
     """**Get raw chunk data**."""
@@ -60,11 +60,17 @@ class WorldSlice:
                           - (self.rect[1] >> 4) + 1)
         self.heightmapTypes = heightmapTypes
 
+        t0 = time.perf_counter()
         bytes = getChunks(*self.chunkRect, rtype='bytes')
+        print(f"took {time.perf_counter() - t0}s")
+        t0 = time.perf_counter()
+
         file_like = BytesIO(bytes)
 
         print("parsing NBT")
         self.nbtfile = nbt.nbt.NBTFile(buffer=file_like)
+        print(f"took {time.perf_counter() - t0}s")
+        t0 = time.perf_counter()
 
         rectOffset = [self.rect[0] % 16, self.rect[1] % 16]
 
@@ -100,6 +106,9 @@ class WorldSlice:
                             except IndexError:
                                 pass
 
+        print(f"took {time.perf_counter() - t0}s")
+        t0 = time.perf_counter()
+
         # sections
         print("extracting chunk sections")
 
@@ -125,6 +134,7 @@ class WorldSlice:
                     self.sections[x][z][y] = CachedSection(
                         palette, blockStatesBitArray)
 
+        print(f"took {time.perf_counter() - t0}s")
         print("done")
 
     def getBlockCompoundAt(self, x, y, z):
