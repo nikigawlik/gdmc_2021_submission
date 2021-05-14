@@ -163,3 +163,7 @@ def normalize(array):
 def listWhere(array): 
     tupleList = np.where(array)
     return list(zip(tupleList[0], tupleList[1]))
+
+def cv2SizedWindow(name, shape, height=512):
+    cv2.namedWindow(name, 0)
+    cv2.resizeWindow(name, int(shape[1] / shape[0] * height), height)
