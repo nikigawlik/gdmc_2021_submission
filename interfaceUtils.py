@@ -14,6 +14,7 @@ __all__ = ['Interface', 'requestBuildArea', 'runCommand',
 from random import randrange
 from numpy.lib.function_base import place
 import requests
+from requests import ConnectionError
 from mapUtils import minecraft_colors
 
 session = requests.Session()
@@ -132,6 +133,18 @@ class Interface():
             print("Request failed: {} Retrying ({} left)".format(e, retries))
             if retries > 0:
                 return self.sendBlocks(x, y, z, retries - 1)
+
+    
+    def sendDirect(self,body, x, y, z, retries=5):
+        url = 'http://localhost:9000/blocks?x={}&y={}&z={}'.format(x, y, z)
+        try:
+            response = requests.put(url, body)
+            return response.text
+        except ConnectionError as e:
+            print("Request failed: {} Retrying ({} left)".format(e, retries))
+            if retries > 0:
+                return self.sendDirect(x, y, z, retries - 1)
+
 
     # ----------------------------------------------------- utility functions
 
@@ -294,3 +307,8 @@ def toggleBuffer():
 def sendBlocks(x=0, y=0, z=0, retries=5):
     """**Global sendBlocks**."""
     return globalinterface.sendBlocks(x, y, z, retries)
+
+def sendDirect(body, x=0, y=0, z=0, retries=5):
+    """**Global sendDirect**."""
+    return globalinterface.sendDirect(body, x, y, z, retries)
+

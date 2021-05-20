@@ -62,14 +62,19 @@ class WorldSlice:
 
         t0 = time.perf_counter()
         bytes = getChunks(*self.chunkRect, rtype='bytes')
-        print(f"took {time.perf_counter() - t0}s")
+
+        showPerf = False
+
+        if showPerf: 
+            print(f"took {time.perf_counter() - t0}s")
         t0 = time.perf_counter()
 
         file_like = BytesIO(bytes)
 
         print("parsing NBT")
         self.nbtfile = nbt.nbt.NBTFile(buffer=file_like)
-        print(f"took {time.perf_counter() - t0}s")
+        if showPerf: 
+            print(f"took {time.perf_counter() - t0}s")
         t0 = time.perf_counter()
 
         rectOffset = [self.rect[0] % 16, self.rect[1] % 16]
@@ -106,7 +111,8 @@ class WorldSlice:
                             except IndexError:
                                 pass
 
-        print(f"took {time.perf_counter() - t0}s")
+        if showPerf: 
+            print(f"took {time.perf_counter() - t0}s")
         t0 = time.perf_counter()
 
         # sections
@@ -134,7 +140,8 @@ class WorldSlice:
                     self.sections[x][z][y] = CachedSection(
                         palette, blockStatesBitArray)
 
-        print(f"took {time.perf_counter() - t0}s")
+        if showPerf: 
+            print(f"took {time.perf_counter() - t0}s")
         print("done")
 
     def getBlockCompoundAt(self, x, y, z):
