@@ -6,7 +6,7 @@ from random import randint, random, randrange
 import cv2
 import numpy as np
 from numpy.core.shape_base import block
-from mapUtils import calcGoodHeightmap, cv2SizedWindow, normalize, visualize, listWhere
+from mapUtils import calcGoodHeightmap, cv2SizedWindow, fractalnoise, noise, normalize, visualize, listWhere
 import interfaceUtils
 from worldLoader import WorldSlice
 from mapUtils import minecraft_woods, minecraft_colors
@@ -20,8 +20,8 @@ import pptk
 
 
 # for testing
-w = 96
-h = 96
+w = 128
+h = 128
 interfaceUtils.runCommand(f"execute at @p run setbuildarea ~-{int(w/2)} 0 ~-{int(h/2)} ~{int(w/2)} 256 ~{int(h/2)}")
 interfaceUtils.setBuffering(True)
 
@@ -59,7 +59,7 @@ for i in range(512):
     cv2.waitKey(1)
 
 
-# prepare ground floor
+## Ground Prep ##
 
 forbiddenMap =  np.zeros(heightmap.shape, dtype=np.uint8)
 elevatorPos = (32,32)
@@ -109,9 +109,9 @@ recalcSlice()
 
 originalHeightmap = np.array(heightmap)
 
-heightmap += 4
+# heightmap += 4
 
-# drop box algorithm
+## Drop Boxes Algorithm ##
 boxes = []
 
 buildingsOnlyHeightmap = np.zeros(heightmap.shape, dtype=np.uint8)
@@ -127,6 +127,7 @@ minHeight = heightmap.min()
 # block cache
 # binary like array 
 # 1 = blocked
+shape2d = (area[2], area[3])
 shape3d = (area[2], maxHeight-minHeight, area[3])
 blockCache = np.zeros(shape3d, dtype=np.uint8)
 
@@ -140,11 +141,11 @@ maxBoxWidth = (area[2] - 3, area[3] - 3)
 # boxPlacedMap = np.zeros(heightmap.shape)
 
 BUILD = True
-COLOR = True
+COLOR = False
 
 boxID = 0
 # place n boxes
-for i in range(40):
+for i in range(200):
     # determine box size first
     sx = randrange(7, min(21, maxBoxWidth[0]))
     sz = randrange(7, min(21, maxBoxWidth[1]))
@@ -172,7 +173,8 @@ for i in range(40):
     desiredBuildPosMap = (dilatedBuildingsHeightmap == buildingsOnlyHeightmap) * (dilatedForbiddenMap == 0) * (dilatedBorderMap == 0) * (255-dilatedHeightmap)
     maxi = desiredBuildPosMap.max()
     if maxi == 0:
-        raise Exception("lol no space") # TODO obv
+        # raise Exception("lol no space") # TODO obv
+        print("lol no space")
     buildPositions = listWhere(desiredBuildPosMap == maxi)
 
     # get valid building positions as list
@@ -283,6 +285,7 @@ interfaceUtils.sendBlocks()
 
 # interfaceUtils.setBuffering(False)
 
+## Post-Process Boxes ##
 for box in boxes:
     dx, y, dz, sx, sy, sz, cx, cz = tuple(box)
 
@@ -293,8 +296,11 @@ for box in boxes:
         doorX = randrange(0, 2) * (sx - 1)
         doorZ = randrange(1, sz-1)
 
-    interfaceUtils.setBlock(area[0] + cx + doorX, y+1, area[1] + cz + doorZ, "acacia_door[half=lower]")
-    interfaceUtils.setBlock(area[0] + cx + doorX, y+2, area[1] + cz + doorZ, "acacia_door[half=upper]")
+    if BUILD:
+        interfaceUtils.setBlock(area[0] + cx + doorX, y+1, area[1] + cz + doorZ, "acacia_door[half=lower]")
+        interfaceUtils.setBlock(area[0] + cx + doorX, y+2, area[1] + cz + doorZ, "acacia_door[half=upper]")
+
+
 
 # debug / visualization windows
 cv2.namedWindow("slices", 0)
@@ -308,6 +314,7 @@ cv2.resizeWindow("hMap", int(heightmap.shape[1] / heightmap.shape[0] * 512), 512
 # cv2.namedWindow("combined", 0)
 # cv2.resizeWindow("combined", int(heightmap.shape[1] / heightmap.shape[0] * 512), 512)
 
+## Slices Bottom -> Top ##
 
 dilSize = 10 # dilation size used to connect platforms
 walkwayWidth = 4 # minimum width of the walkways
@@ -316,6 +323,7 @@ walkwayWidth = 4 # minimum width of the walkways
 kSize = dilSize * 2 + 1
 strctBigCirc = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (kSize,kSize))
 strctCross = cv2.getStructuringElement(cv2.MORPH_CROSS, (3,3))
+strctRect = cv2.getStructuringElement(cv2.MORPH_RECT, (3,3))
 # strctMedCirc = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7,7))
 
 traversable = (blockCache == 0)
@@ -352,7 +360,7 @@ for i in range(maxHeight - minHeight):
         platform2 = np.where(pass1Heightmap != y, platform0, 0) 
         platform2 = cv2.dilate(platform2, strctCross, iterations=walkwayWidth)
 
-        platform = cv2.bitwise_or(platform1, platform2)
+        floor = cv2.bitwise_or(platform1, platform2)
 
         # TODO
         # get rid of 1-wide artifacts
@@ -360,15 +368,15 @@ for i in range(maxHeight - minHeight):
 
         # TODO visualize
 
-        platformCache[:,i,:] = platform[:,:]
+        platformCache[:,i,:] = floor[:,:]
 
         # calc space under platform
-        diffToHM = np.maximum(0, y - heightmap - 1) * platform
+        diffToHM = np.maximum(0, y - heightmap - 1) * floor
         diffToHM = cv2.bitwise_and(diffToHM, 0b01111111) # fix underflows
 
         # prep platform for build and update blockCache
-        platform = (free & ~ground) * platform
-        blockCache[:,i-1,:] |= platform > 0
+        floor = (free & ~ground) * floor
+        blockCache[:,i-1,:] |= floor > 0
 
         # update hm according to last 2 layers of heightmap
         heightmap = np.where(blockCache[:,i-1,:] > 0, y-1, heightmap)
@@ -390,7 +398,7 @@ for i in range(maxHeight - minHeight):
         # visualize
         r = blocked.astype(np.uint8) * 128 + blockCache[:,i,:] * 127
         g = ground.astype(np.uint8) * 255 
-        b = platform.astype(np.uint8) * int(255 / walkwayWidth)
+        b = floor.astype(np.uint8) * int(255 / walkwayWidth)
         # b = (originalHeightmap > i + minHeight).astype(np.uint8) * 255
 
         bgr = cv2.merge((b, g, r))
@@ -408,8 +416,8 @@ for i in range(maxHeight - minHeight):
         cv2.waitKey(1)
 
         # build layer if necessary
-        if platform.max() > 0:
-            wallPositions = np.where(platform > 0)
+        if floor.max() > 0:
+            wallPositions = np.where(floor > 0)
             foundation = np.where(diffToHM > 5, 0, diffToHM)
             y = minHeight + i
             for p in zip(*wallPositions):
@@ -423,7 +431,7 @@ for i in range(maxHeight - minHeight):
             lastLayerY = y # TODO kindaweird
             lastLayer[0,:,:] = blocked.astype(np.uint8)
             lastLayer[1,:,:] = ground.astype(np.uint8)
-            lastLayer[2,:,:] = platform
+            lastLayer[2,:,:] = floor
         interfaceUtils.sendBlocks()
 
 cv2.destroyAllWindows()
@@ -433,11 +441,13 @@ cv2.resizeWindow("elevators", int(heightmap.shape[1] / heightmap.shape[0] * 512)
 cv2.namedWindow("outline", 0)
 cv2.resizeWindow("outline", int(heightmap.shape[1] / heightmap.shape[0] * 512), 512)
 
+## Slices Top -> Bottom ##
 
 for i in range(maxHeight - minHeight - 1, -1, -1):
-    platform = platformCache[:,i,:]
-    platformCount, labels, stats, centroids = cv2.connectedComponentsWithStats(platform, connectivity=4)
-    print(f"platformCount={platformCount}, labels={labels}, stats={stats}, centroids={centroids}")
+    y = minHeight + i
+    floor = platformCache[:,i,:]
+    platformCount, labels, stats, centroids = cv2.connectedComponentsWithStats(floor, connectivity=4)
+    # print(f"platformCount={platformCount}, labels={labels}, stats={stats}, centroids={centroids}")
     
     elevatorShape = (5,5) # if random() > .5 else (3,5)
     strctElmt = cv2.getStructuringElement(cv2.MORPH_RECT, elevatorShape)
@@ -453,54 +463,177 @@ for i in range(maxHeight - minHeight - 1, -1, -1):
 
     for j in range(platformCount):
         if not j in overlaps:
-            buildPositions = listWhere(outline == j)
+            buildPositions = listWhere(outline == j) ## TODO might be empty (otherwhere too)
+            if len(buildPositions) == 0:
+                buildPositions = listWhere(labels == j)
             pos = buildPositions[randrange(len(buildPositions))]
             pos = (pos[1], pos[0])
 
             print(f"start elevator at {pos[0] + area[0]}, {pos[1] + area[1]}")
             elevators = cv2.rectangle(elevators, tuple(pos), tuple(pos), 1, -1)
 
-    elevatorsBuildShape = elevators * (originalHeightmap < y)
-    elevatorsBuildShapeFloor = elevators * (originalHeightmap == y)
+    elevatorsBuildShape = elevators * (originalHeightmap < y-1)
+    elevatorsBuildShapeFloor = elevators * (originalHeightmap == y-1)
     elevatorsBuildShapeDilated = cv2.dilate(elevatorsBuildShape, strctElmt)
     elevatorsBuildOutline = elevatorsBuildShapeDilated - cv2.erode(elevatorsBuildShapeDilated, strctCross)
-    platformDil = cv2.dilate(platform, strctCross)
+    platformDil = cv2.dilate(floor, strctCross)
     elevatorsBuildOutline = np.where(platformDil > 0, 0, elevatorsBuildOutline)
 
     blockCache[:,i,:] = np.where(elevatorsBuildShapeDilated > 0, 2, blockCache[:,i,:])
             
     # build elevators
-    wallPositions = np.where(elevatorsBuildOutline > 0)
-    y = minHeight + i
-    for p in zip(*wallPositions):
-        x = area[0] + p[0]
-        z = area[1] + p[1]
-        if BUILD:
-            interfaceUtils.setBlock(x, y, z, "gray_wool")
-    interfaceUtils.sendBlocks()
+    # wallPositions = np.where(elevatorsBuildOutline > 0)
+    # for p in zip(*wallPositions):
+    #     x = area[0] + p[0]
+    #     z = area[1] + p[1]
+    #     if BUILD:
+    #         interfaceUtils.setBlock(x, y, z, "gray_wool")
+    # interfaceUtils.sendBlocks()
 
     centerPositions = np.where(elevatorsBuildShape > 0)
     for p in zip(*centerPositions):
-        if y % 5 == 0:
-            x = area[0] + p[0] - 2
-            z = area[1] + p[1] - 2
-            sendPattern(blockRegistry.patternElevatorLight, x, y, z)
-        else:
-            x = area[0] + p[0] - 1
-            z = area[1] + p[1] - 1
+        # if y % 5 == 0:
+        #     x = area[0] + p[0] - 2
+        #     z = area[1] + p[1] - 2
+        #     if BUILD:
+        #         sendPattern(blockRegistry.patternElevatorLight, x, y, z)
+        # else:
+        x = area[0] + p[0] - 1
+        z = area[1] + p[1] - 1
+        if BUILD:
             sendPattern(blockRegistry.patternElevator, x, y, z)
     
     centerPositions = np.where(elevatorsBuildShapeFloor > 0)
     for p in zip(*centerPositions):
         x = area[0] + p[0] - 1
         z = area[1] + p[1] - 1
-        sendPattern(blockRegistry.patternElevatorFloor, x, y, z)
+        if BUILD:
+            sendPattern(blockRegistry.patternElevatorFloor, x, y, z)
 
     cv2.waitKey(1)
         
 
 cv2.destroyAllWindows()
 interfaceUtils.sendBlocks()
+
+
+# cache test
+# print("Doing cache test, will nuke everything")
+# for i in range(shape3d[1]):
+#     for j in range(shape3d[0]):
+#         for k in range(shape3d[2]):
+#             numID = blockCache[(j,i,k)]
+#             x = area[0] + j
+#             z = area[1] + k
+#             y = minHeight + i
+#             if numID == 0:
+#                 interfaceUtils.setBlock(x, y, z, "air")
+#             elif numID == 1:
+#                 interfaceUtils.setBlock(x, y, z, "white_wool")
+#             elif numID == 2: 
+#                 interfaceUtils.setBlock(x, y, z, "light_gray_wool")
+#             else:
+#                 interfaceUtils.setBlock(x, y, z, "red_wool")
+
+
+interfaceUtils.sendBlocks()
+
+
+cv2.namedWindow("railings", 0)
+cv2.resizeWindow("railings", int(heightmap.shape[1] / heightmap.shape[0] * 512), 512)
+cv2.namedWindow("bCache", 0)
+cv2.resizeWindow("bCache", int(heightmap.shape[1] / heightmap.shape[0] * 512), 512)
+
+## Pseudo-CA Bottom -> Top
+# labels:
+lGround = 1
+lTopsoil = 2
+# lPaved = 3
+lPlatform = 4
+lIndoorFeet = 5
+lOutdoorFeet = 6
+lIndoorHead = 7
+lOutdoorHead = 8
+lIndoorAir = 9
+lIndoorFloor = 10
+lRailingFloor = 11
+lRailingFeet = 12
+lRailingHead = 13
+lWall = 14
+
+def buildByCondition(condition, y, blockID):
+    buildPositions = np.where(condition)
+    for p in zip(*buildPositions):
+        x = area[0] + p[0]
+        z = area[1] + p[1]
+        if BUILD:
+            interfaceUtils.setBlock(x, y, z, blockID)
+    interfaceUtils.sendBlocks()
+
+layer = np.ones(shape2d, dtype=np.uint8) * 0
+
+for i in range(0, maxHeight - minHeight - 1):
+    y = minHeight + i
+
+    prevLayer = layer
+    bCache = blockCache[:,i,:]
+    bCachePlus1 = blockCache[:,i+1,:]
+
+    bCachePlus4 = blockCache[:,i+4,:] if i+4 < maxHeight - minHeight else np.ones(shape2d, dtype=np.uint8) * 0
+
+    layer = np.zeros(shape2d)
+
+    layer = np.where((bCache == 1) & (bCachePlus1 == 0), lPlatform, layer)
+    
+    layer = np.where(y < originalHeightmap - 1, lGround, layer)
+    layer = np.where(y == originalHeightmap - 1, lTopsoil, layer)
+
+    layer = np.where(prevLayer == lPlatform, lOutdoorFeet, layer)
+    layer = np.where(prevLayer == lOutdoorFeet, lOutdoorHead, layer)
+
+    # layer = np.where(np.isin(prevLayer, [0, lIndoorAir]) & (bCache == 1) & (bCachePlus1 == 1) & (bCachePlus4 == 1), lIndoorFloor, layer)
+    # layer = np.where(prevLayer == lIndoorFloor, lIndoorFeet, layer)
+    # layer = np.where(prevLayer == lIndoorFeet, lIndoorHead, layer)
+    # layer = np.where(prevLayer == lIndoorHead, lIndoorAir, layer)
+
+    # floor = np.isin(layer, [lIndoorFloor, lPlatform]).astype(np.uint8)
+    floor = (bCache == 1).astype(np.uint8)
+    railing = floor - cv2.erode(floor, strctRect)
+    railing = np.where(layer == lPlatform, railing, 0)
+
+    building = (bCache == 1).astype(np.uint8)
+    walls = building - cv2.erode(building, strctRect)
+
+    layer = np.where(walls > 0, lWall, layer)
+
+    layer = np.where(railing > 0, lRailingFloor, layer)
+    layer = np.where(prevLayer == lRailingFloor, lRailingFeet, layer)
+    layer = np.where(prevLayer == lRailingFeet, lRailingHead, layer)
+
+    # TODO modify block cache to fit labels
+
+    
+    cv2.imshow("railings", railing * 255) 
+    cv2.imshow("bCache", (normalize(bCache) * 255).astype(np.uint8)) 
+    cv2.waitKey(0 if i==1 else 1)
+
+    # build
+    if BUILD:
+        rndNoise = noise(shape2d, shape2d)
+        buildByCondition(layer == lTopsoil, y, "blackstone")
+        buildByCondition(layer == lPlatform, y, "blue_terracotta")
+        buildByCondition((layer == lIndoorFeet) & (rndNoise < 0.25) , y, "white_carpet")
+        buildByCondition((layer == lOutdoorFeet) & (rndNoise < 0.25) , y, "gray_carpet")
+        # buildByCondition(np.isin(layer, [lIndoorHead, lOutdoorHead, lIndoorAir, lRailingHead]), y, "air")
+        # buildByCondition(layer == lOutdoorHead, y, "air")
+        # buildByCondition(layer == lIndoorAir, y, "air")
+        # buildByCondition(layer == lRailingHead, y, "air")
+        buildByCondition(layer == lIndoorFloor, y, "white_concrete")
+        buildByCondition(layer == lRailingFloor, y, "light_gray_concrete")
+        buildByCondition(layer == lRailingFeet, y, "white_stained_glass_pane")
+        buildByCondition(layer == lWall, y, "gray_concrete")
+
+
 
 # step 4 - traversability
 
