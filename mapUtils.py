@@ -159,6 +159,10 @@ def normalize(array):
     """**Normalize the array to contain values from 0 to 1**."""
     return (array - array.min()) / (array.max() - array.min())
 
+def normalizeUInt8(array):
+    """**Normalize the array to contain values from 0 to 255 as a uint8 type**."""
+    return (normalize(array) * 255).astype(np.uint8)
+
 
 def listWhere(array): 
     tupleList = np.where(array)
