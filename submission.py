@@ -6,7 +6,7 @@ from random import randint, random, randrange
 import cv2
 import numpy as np
 from numpy.core.shape_base import block
-from mapUtils import calcGoodHeightmap, cv2SizedWindow, fractalnoise, noise, normalize, normalizeUInt8, visualize, listWhere
+from mapUtils import calcGoodHeightmap, cv2SizedWindow, distanceToCenter, fractalnoise, noise, normalize, normalizeUInt8, visualize, listWhere
 import interfaceUtils
 from worldLoader import WorldSlice
 from mapUtils import minecraft_woods, minecraft_colors
@@ -61,7 +61,14 @@ for i in range(512):
 
 ## Ground Prep ##
 
-forbiddenMap =  np.zeros(heightmap.shape, dtype=np.uint8)
+## funky chasms
+largenoise = normalize(fractalnoise(heightmap.shape, 2, 3))
+distToCenter = distanceToCenter(heightmap.shape)
+cutoff = np.percentile(largenoise, 50) #random.randint(50, 75))
+endheight = int(np.median(heightmap) - 4)
+
+# forbiddenMap =  np.zeros(heightmap.shape, dtype=np.uint8)
+forbiddenMap = (largenoise > cutoff).astype(np.uint8) * (distToCenter < 0.49)
 elevatorPos = (32,32)
 cv2.rectangle(forbiddenMap, (30,30), (34,34), (1), -1)
 
@@ -71,9 +78,12 @@ difference = (flattenedHM.astype(np.int) - heightmap)
 fill = np.where((difference > 0) & (difference < 6))
 bridge = np.where((difference > 0) & (difference >= 6))
 cut = np.where(difference < 0)
-pave = np.where(forbiddenMap > 0)
 
-TERRAFORM = False
+strctElmt = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7,7))
+chasm = cv2.erode(forbiddenMap, strctElmt)
+pave = np.where((forbiddenMap > 0) & (chasm == 0))
+
+TERRAFORM = True
 
 
 # input("wait...")
@@ -98,8 +108,13 @@ if TERRAFORM:
             interfaceUtils.setBlock(p[0] + area[0], y, p[1] + area[1], "air")
     # pave
     for p in zip(pave[0], pave[1]):
-        print(f"concrete at{p[0]} {p[1]}")
+        # print(f"concrete at{p[0]} {p[1]}")
         interfaceUtils.setBlock(p[0] + area[0], flattenedHM[p], p[1] + area[1], "white_concrete")
+
+    # chasm
+    for p in zip(*np.where(chasm > 0)):
+        for y in range(flattenedHM[p] + 1, endheight, -1):
+            interfaceUtils.setBlock(area[0] + p[0], y, area[1] + p[1], "air")
 
     interfaceUtils.sendBlocks()
 
@@ -109,6 +124,8 @@ if TERRAFORM:
     # print(interfaceUtils.runCommand(cmd))
 
 recalcSlice()
+
+# input("wait...")
 
 originalHeightmap = np.array(heightmap)
 
@@ -136,7 +153,8 @@ lcPlatform = 1
 lcBuilding = 2
 lcBuildingFoundation = 3
 lcPillar = 4
-lcElevator = 5
+lcStairs = 5
+lcKeepFree = 6
 
 shape2d = (area[2], area[3])
 shape3d = (area[2], maxHeight-minHeight, area[3])
@@ -471,6 +489,10 @@ cv2.resizeWindow("outline", int(heightmap.shape[1] / heightmap.shape[0] * 512), 
 cv2.namedWindow("labels", 0)
 cv2.resizeWindow("labels", int(heightmap.shape[1] / heightmap.shape[0] * 512), 512)
 
+# funky kernerls
+strctBranch = np.array([[0,0,1,0,0],[0,0,0,0,0],[1,0,0,0,1],[0,0,0,0,0],[0,0,1,0,0]], dtype=np.uint8)
+strctRing = np.array([[1,1,1,1,1],[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1],[1,1,1,1,1]], dtype=np.uint8)
+
 ## Slices Top -> Bottom ##
 
 for i in range(maxHeight - minHeight - 1, 0, -1):
@@ -479,9 +501,15 @@ for i in range(maxHeight - minHeight - 1, 0, -1):
     # stairs move operation
     stairsCount, stairsLabels, _, _ = cv2.connectedComponentsWithStats(stairs, connectivity=4)
     stairsLabels = stairsLabels.astype(np.uint8)
-    stairsLabelsCandidates = stairsLabels * (blockCache[:,i,:] == 0)
-    # stairsLabelsCandidates = cv2.dilate(stairsLabels, strctRect)
-    stairsLabelsCandidates = cv2.dilate(stairsLabelsCandidates, strctCross) - stairsLabelsCandidates
+    # stairsLabelsCandidates = stairsLabels * (blockCache[:,i,:] == 0)
+    stairsLabelsCandidates = stairsLabels
+    stairsLabelsCandidates = cv2.erode(stairsLabelsCandidates, strctCross)
+    stairsLabelsCandidates = cv2.dilate(stairsLabelsCandidates, strctBranch)
+    stairsLabelsCandidates *= (blockCache[:,i,:] == 0)
+    stairsLabelsCandidates = cv2.dilate(stairsLabelsCandidates, strctCross)
+    stairsLabelsCandidates *= (cv2.dilate(stairsLabels, strctCross) - stairsLabels) > 0
+    # stairsLabelsCandidates = stairsLabelsCandidates - stairsLabels
+    
     
     # check traversability
     stairsLabelsCandidates = traversibilityCheck(stairsLabelsCandidates, i, 5)
@@ -489,23 +517,32 @@ for i in range(maxHeight - minHeight - 1, 0, -1):
     stairsLabelsCandidatesAlt = stairsLabelsCandidates
     stairsLabelsCandidates = np.where((blockCache[:,i,:] == 0) & (blockCache[:,i-1,:] == 0), stairsLabelsCandidates, 0)
     
+    blockCacheWalls = np.isin(blockCache[:,i,:], [lcPlatform, lcBuilding, lcBuildingFoundation]).astype(np.uint8)
+    blockCacheWalls = cv2.dilate(blockCacheWalls, strctCross, iterations=2)
+    stairsLabelsCandidatesPreferred = (blockCacheWalls != 0) * stairsLabelsCandidates
+
     blockCacheWalls = (blockCache[:,i,:] != 0).astype(np.uint8)
-    blockCacheWalls = cv2.dilate(blockCacheWalls, strctRect) - blockCacheWalls
-    
-    stairsLabelsCandidatesPreferred = np.where(blockCacheWalls, stairsLabelsCandidates, 0)
+    blockCacheWalls = cv2.dilate(blockCacheWalls, strctCross, iterations=2)
+    stairsLabelsCandidatesSlightlyLessPreferred = (blockCacheWalls != 0) * stairsLabelsCandidates
 
     stairs *= 0
 
     for j in range(1, stairsCount):
         buildPositions = listWhere(stairsLabelsCandidatesPreferred == j)
+        lvl = 1
+        if len(buildPositions) == 0:
+            buildPositions = listWhere(stairsLabelsCandidatesSlightlyLessPreferred == j)
+            lvl = 2
         if len(buildPositions) == 0:
             buildPositions = listWhere(stairsLabelsCandidates == j)
+            lvl = 3
         if len(buildPositions) == 0:
             buildPositions = listWhere(stairsLabelsCandidatesAlt == j)
+            lvl = 4
         if len(buildPositions) > 0:
             pos = buildPositions[randrange(len(buildPositions))]
             flippedPos = np.flip(pos) # opencv / numpy coordinate disagreemets
-            stairs = cv2.rectangle(stairs, tuple(flippedPos - 1), tuple(flippedPos + 1), 1, -1)
+            stairs = cv2.rectangle(stairs, tuple(flippedPos - 1), tuple(flippedPos + 1), lvl, -1)
 
             # build support pillar
             if i % 3 == 0:
@@ -540,9 +577,9 @@ for i in range(maxHeight - minHeight - 1, 0, -1):
     
     outline = traversibilityCheck(outline, i, 3)
     
-    cv2.imshow("stairs", (stairs * 255).astype(np.uint8))
-    cv2.imshow("outline", (normalize(outline) * 255).astype(np.uint8))
-    cv2.imshow("labels", cv2.applyColorMap((normalize(labels) * 255).astype(np.uint8), cv2.COLORMAP_INFERNO))
+    cv2.imshow("stairs", normalizeUInt8(stairs))
+    cv2.imshow("outline", normalizeUInt8(outline))
+    cv2.imshow("labels", cv2.applyColorMap(normalizeUInt8(labels), cv2.COLORMAP_INFERNO))
 
     # cv2.waitKey(1 if labels.max() == 0 else 0)
     cv2.waitKey(1)
@@ -565,15 +602,17 @@ for i in range(maxHeight - minHeight - 1, 0, -1):
     # platformDil = cv2.dilate(floor, strctCross)
     # elevatorsBuildOutline = np.where(platformDil > 0, 0, elevatorsBuildOutline)
 
-    blockCache[:,i,:] = np.where(stairs > 0, lcElevator, blockCache[:,i,:])
+    blockCache[:,i,:] = np.where(stairs > 0, lcStairs, blockCache[:,i,:])
             
     # build stairs
     buildPositions = np.where(stairs > 0)
     for p in zip(*buildPositions):
         x = area[0] + p[0]
         z = area[1] + p[1]
+        # blockID = ["gray_concrete", "cyan_terracotta", "gray_stained_glass", "light_gray_stained_glass" ][stairs[tuple(p)] - 1]
+        blockID = "gray_concrete" if stairs[tuple(p)] == 1 else "cyan_terracotta"
         if BUILD:
-            interfaceUtils.setBlock(x, y, z, "gray_concrete")
+            interfaceUtils.setBlock(x, y, z, blockID)
     interfaceUtils.sendBlocks()
 
     # centerPositions = np.where(elevatorsBuildShape > 0)
@@ -601,6 +640,9 @@ for i in range(maxHeight - minHeight - 1, 0, -1):
 
 cv2.destroyAllWindows()
 interfaceUtils.sendBlocks()
+
+## Decoration ##
+
 
 
 # cache test

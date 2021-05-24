@@ -83,7 +83,6 @@ def listWhere(array):
 distToCenter = distanceToCenter(heightmap.shape)
 invDistToCenter = 1 - distToCenter
 
-largenoise = normalize(fractalnoise(heightmap.shape, 2, 3))
 
 # working maps
 colormap = np.ones(heightmap.shape, dtype=np.int) * -1
@@ -184,6 +183,7 @@ sendRemainingBlocks()
 testspace = (distToCenter < 0.4)
 ps = listWhere(testspace)
 
+largenoise = normalize(fractalnoise(heightmap.shape, 2, 3))
 thickness = 12
 cutoff = np.percentile(largenoise, random.randint(25, 75))
 chasm = (largenoise > cutoff)
