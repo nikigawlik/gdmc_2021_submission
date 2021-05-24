@@ -320,23 +320,6 @@ interfaceUtils.sendBlocks()
 
 # interfaceUtils.setBuffering(False)
 
-## Post-Process Boxes ##
-# for box in boxes:
-#     dx, y, dz, sx, sy, sz, cx, cz = tuple(box)
-
-#     if random() > 0.5:
-#         doorX = randrange(1, sx-1)
-#         doorZ = randrange(0, 2) * (sz - 1)
-#     else:
-#         doorX = randrange(0, 2) * (sx - 1)
-#         doorZ = randrange(1, sz-1)
-
-#     if BUILD:
-#         interfaceUtils.setBlock(area[0] + cx + doorX, y+1, area[1] + cz + doorZ, "acacia_door[half=lower]")
-#         interfaceUtils.setBlock(area[0] + cx + doorX, y+2, area[1] + cz + doorZ, "acacia_door[half=upper]")
-
-
-
 # debug / visualization windows
 cv2.namedWindow("slices", 0)
 cv2.resizeWindow("slices", int(heightmap.shape[1] / heightmap.shape[0] * 512), 512)
@@ -643,6 +626,26 @@ interfaceUtils.sendBlocks()
 
 ## Decoration ##
 
+# mark spaces as 'keep free'
+for i in range(maxHeight - minHeight - 2):
+    walkSpace = np.isin(blockCache[:,i,:], [lcPlatform, lcStairs])
+    for k in range(1,3):
+        blockCache[:,i+k,:] = np.where(walkSpace & (blockCache[:,i+k,:] == 0), lcKeepFree, blockCache[:,i,:])
+
+# post process boxes
+for box in boxes:
+    dx, y, dz, sx, sy, sz, cx, cz = tuple(box)
+
+    if random() > 0.5:
+        doorX = randrange(1, sx-1)
+        doorZ = randrange(0, 2) * (sz - 1)
+    else:
+        doorX = randrange(0, 2) * (sx - 1)
+        doorZ = randrange(1, sz-1)
+
+    if BUILD:
+        interfaceUtils.setBlock(area[0] + cx + doorX, y+1, area[1] + cz + doorZ, "acacia_door[half=lower]")
+        interfaceUtils.setBlock(area[0] + cx + doorX, y+2, area[1] + cz + doorZ, "acacia_door[half=upper]")
 
 
 # cache test
