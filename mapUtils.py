@@ -157,7 +157,11 @@ def visualize(*arrays, title=None, autonormalize=True):
 
 def normalize(array):
     """**Normalize the array to contain values from 0 to 1**."""
-    return (array - array.min()) / (array.max() - array.min())
+    difference = array.max() - array.min()
+    if difference == 0:
+        return array * 0
+    else:
+        return (array - array.min()) / difference
 
 def normalizeUInt8(array):
     """**Normalize the array to contain values from 0 to 255 as a uint8 type**."""

@@ -21,11 +21,11 @@ def sendPattern(pattern, x, y, z):
 patternElevator = createPattern2D(\
    [[0,1,0],
     [1,2,1],
-    [0,1,0]], ["air", "black_stained_glass_pane", "water"]
+    [0,1,0]], ["air", "black_stained_glass_pane", "ladder"]
 )
 patternElevatorFloor = createPattern2D(\
    [[0,1,0],
-    [1,2,1],
+    [1,1,1],
     [0,1,0]], ["slime_block", "gray_concrete", "soul_sand"]
 )
 patternElevatorLight = createPattern2D(\
@@ -33,5 +33,5 @@ patternElevatorLight = createPattern2D(\
     [0,1,2,1,0],
     [4,2,3,2,4],
     [0,1,2,1,0],
-    [0,0,4,0,0]], [None, "air", "black_stained_glass_pane", "water", "sea_lantern"]
+    [0,0,4,0,0]], [None, "air", "black_stained_glass_pane", "ladder", "sea_lantern"]
 )
