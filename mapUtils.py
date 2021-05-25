@@ -157,6 +157,7 @@ def visualize(*arrays, title=None, autonormalize=True):
 
 def normalize(array):
     """**Normalize the array to contain values from 0 to 1**."""
+    array = array * 1
     difference = array.max() - array.min()
     if difference == 0:
         return array * 0
@@ -175,3 +176,6 @@ def listWhere(array):
 def cv2SizedWindow(name, shape, height=512):
     cv2.namedWindow(name, 0)
     cv2.resizeWindow(name, int(shape[1] / shape[0] * height), height)
+
+def imshowLabels(array, windowName = "labels", colorMap = cv2.COLORMAP_INFERNO):
+    cv2.imshow(windowName, cv2.applyColorMap(normalizeUInt8(array), colorMap))

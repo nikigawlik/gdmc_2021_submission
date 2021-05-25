@@ -60,7 +60,7 @@ Evaluation
   - State of Decay
   - Layers over Layers
 - Visual Aesthetics
-  - Interesting color palette (Kolorit)
+  - Interesting color palette
   - aesthetics of light and dark
   - silhuettes
   - postitive and negative space
