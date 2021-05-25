@@ -1,4 +1,4 @@
-from blockRegistry import sendPattern
+from blockRegistry import getFurnitureRandomClutter, getSimpleRandomClutter, sendPattern
 import blockRegistry
 from functools import reduce
 from math import cos, sin
@@ -20,8 +20,8 @@ import pptk
 
 
 # for testing
-w = 96 
-h = 96
+w = 255 
+h = 255
 interfaceUtils.runCommand(f"execute at @p run setbuildarea ~-{int(w/2)} 0 ~-{int(h/2)} ~{int(w/2)} 256 ~{int(h/2)}")
 interfaceUtils.setBuffering(True)
 
@@ -64,7 +64,7 @@ for i in range(512):
 ## funky chasms
 largenoise = normalize(fractalnoise(heightmap.shape, 2, 3))
 distToCenter = distanceToCenter(heightmap.shape)
-cutoff = np.percentile(largenoise, 50) #random.randint(50, 75))
+cutoff = np.percentile(largenoise, 70) #random.randint(50, 75))
 endheight = int(np.median(heightmap) - 4)
 
 # forbiddenMap =  np.zeros(heightmap.shape, dtype=np.uint8)
@@ -142,6 +142,8 @@ boxes = []
 
 buildingsOnlyHeightmap = np.zeros(heightmap.shape, dtype=np.uint8)
 
+modifiedHeightmap = heightmap[:]
+
 borderMap = np.zeros(heightmap.shape, dtype=np.uint8)
 cv2.rectangle(borderMap, (0, 0), (area[3]-1, area[2]-1), (1), 3)
 
@@ -186,7 +188,7 @@ maxBoxWidth = (area[2] - 3, area[3] - 3)
 BUILD = True
 COLOR = False
 
-buildingsPerSquareMeter = 0.006
+buildingsPerSquareMeter = 0.007
 buildingCount = int((w * h) * buildingsPerSquareMeter)
 
 boxID = 0
@@ -212,7 +214,7 @@ for i in range(buildingCount):
     
     # gap between neighboring buildings
     gap = randrange(1,3)
-    if random() < .1:
+    if random() < .8:
         gap = 0
 
     # use the footprint of the box as a dilation kernel to find valid places to build
@@ -311,6 +313,8 @@ for i in range(buildingCount):
     hmOceanFloor[cx:cx+sx, cz:cz+sz] = bheight
     buildingsOnlyHeightmap[cx:cx+sx, cz:cz+sz] = bheight
 
+    modifiedHeightmap[cx:cx+sx, cz:cz+sz] = y - 2
+
     # update block cache and id map
     dy = y - minHeight
     # mark as obstructed
@@ -340,6 +344,11 @@ for i in range(buildingCount):
     cv2.waitKey(1)
 
 interfaceUtils.sendBlocks()
+
+# clear some extra land
+for pos in zip(*np.where(modifiedHeightmap < originalHeightmap)):
+    for y in range(originalHeightmap[pos], modifiedHeightmap[pos], -1):
+        interfaceUtils.setBlock(area[0] + pos[0], y, area[1] + pos[1], "air")
 
 
 # 2nd pass -> traversability
@@ -387,7 +396,7 @@ for i in range(maxHeight - minHeight):
     # pathway maps
     if i > 0 and i < maxHeight - minHeight - 1:
         free = traversable[:,i,:] & traversable[:,i+1,:]
-        blocked = ~free
+        blockedByDoors = ~free
         ground = ~traversable[:,i-1,:] & free
         y = minHeight + i
 
@@ -442,7 +451,7 @@ for i in range(maxHeight - minHeight):
         # # cv2.imshow("combined", bgr)
 
         # visualize
-        r = blocked.astype(np.uint8) * 128 + normalizeUInt8(blockCache[:,i,:]) // 2
+        r = blockedByDoors.astype(np.uint8) * 128 + normalizeUInt8(blockCache[:,i,:]) // 2
         g = ground.astype(np.uint8) * 255 
         b = floor.astype(np.uint8) * int(255 / walkwayWidth)
         # b = (originalHeightmap > i + minHeight).astype(np.uint8) * 255
@@ -475,7 +484,7 @@ for i in range(maxHeight - minHeight):
                         interfaceUtils.setBlock(x, yy, z, "gray_concrete")
 
             lastLayerY = y # TODO kindaweird
-            lastLayer[0,:,:] = blocked.astype(np.uint8)
+            lastLayer[0,:,:] = blockedByDoors.astype(np.uint8)
             lastLayer[1,:,:] = ground.astype(np.uint8)
             lastLayer[2,:,:] = floor
         interfaceUtils.sendBlocks()
@@ -651,108 +660,12 @@ for i in range(maxHeight - minHeight - 1, 0, -1):
 cv2.destroyAllWindows()
 interfaceUtils.sendBlocks()
 
-## Decoration ##
-magicPattern = np.array([[0,0,0,1],[0,1,0,0],[0,0,1,0],[1,0,0,0]], dtype=np.uint8)
-magicPatternTiled = np.tile(magicPattern, np.array(shape2d)//np.array(np.shape(magicPattern)) + 1)[tuple(map(slice, shape2d))]
 
 # mark spaces as 'keep free'
 for i in range(maxHeight - minHeight - 2):
     walkSpace = np.isin(blockCache[:,i,:], [lcPlatform, lcStairs])
     for k in range(1,3):
         blockCache[:,i+k,:] = np.where(walkSpace & (blockCache[:,i+k,:] == 0), lcKeepFree, blockCache[:,i+k,:])
-
-# # post process boxes
-# for box in boxes:
-#     dx, y, dz, sx, sy, sz, cx, cz = tuple(box)
-
-#     if random() > 0.5:
-#         doorX = randrange(1, sx-1)
-#         doorZ = randrange(0, 2) * (sz - 1)
-#     else:
-#         doorX = randrange(0, 2) * (sx - 1)
-#         doorZ = randrange(1, sz-1)
-
-#     if BUILD:
-#         interfaceUtils.setBlock(area[0] + cx + doorX, y+1, area[1] + cz + doorZ, "acacia_door[half=lower]")
-#         interfaceUtils.setBlock(area[0] + cx + doorX, y+2, area[1] + cz + doorZ, "acacia_door[half=upper]")
-
-cv2SizedWindow("buildings", shape2d)
-cv2SizedWindow("doorspace", shape2d)
-cv2SizedWindow("walkspace", shape2d)
-
-failedHouses = 0
-succeededHouses = 0
-
-for i in range(1, maxHeight - minHeight):
-    y = minHeight + i
-    buildings = (blockCache[:,i,:] == lcBuildingFoundation).astype(np.uint8)
-    imshowLabels(buildings, "buildings")
-
-    labelCount, buildingsLabels, _, centroids = cv2.connectedComponentsWithStats(buildings, connectivity=4)
-    buildingsLabels = buildingsLabels.astype(np.uint8)
-
-    # the first operation gets rid of the corners
-    wallsLabels = cv2.dilate(cv2.erode(buildingsLabels, strctCross), strctCross) - cv2.erode(buildingsLabels, strctCross)
-    # surroundingLabels = cv2.dilate(buildingsLabels, strctCross) - buildingsLabels
-    # lets start with the door
-    walkSpace = (np.isin(blockCache[:,i-1,:], [lcPlatform, lcStairs]) | (y <= flattenedHM)).astype(np.uint8)
-    walkSpace = traversibilityCheck(walkSpace, i, 2)
-    accesible = cv2.dilate(walkSpace, strctCross)
-    doorPotential = np.where(accesible > 0, wallsLabels, 0)
-
-    imshowLabels(doorPotential, "doorspace")
-    imshowLabels(walkSpace, "walkspace")
-
-    for j in range(1, labelCount):
-        exitPositions = listWhere(doorPotential == j)
-        if len(exitPositions) > 0:
-            succeededHouses += 1
-            pos = exitPositions[randrange(len(exitPositions))]
-            blockCache[pos[0], i-1, pos[1]] = lcDoorstep
-            blockCache[pos[0], i:i+2, pos[1]] = lcDoor
-            if BUILD:
-                # TODO let door face in correct direction
-                interfaceUtils.setBlock(area[0] + pos[0], y, area[1] + pos[1], "acacia_door[half=lower]")
-                interfaceUtils.setBlock(area[0] + pos[0], y+1, area[1] + pos[1], "acacia_door[half=upper]")
-        else:
-            failedHouses += 1
-            centroid = centroids[j]
-            print(f"House didn't find exit!!! at {area[0] + centroid[0]} {y} {area[1] + centroid[1]}")
-            # TODO do something better
-            # remove foundation status
-            # blockCache[:,i,:] = np.where(buildingsLabels == j, lcNoAccessFoundation, blockCache[:,i,:])
-
-
- 
-    # cv2.waitKey(0 if buildingsLabels.max() > 0 else 1)
-    cv2.waitKey(1)
-
-print(f"buildings with doors: {succeededHouses} buildings without doors: {failedHouses}")
-
-cv2.destroyAllWindows()
-
-# cache test
-# print("Doing cache test, will nuke everything")
-# for i in range(shape3d[1]):
-#     for j in range(shape3d[0]):
-#         for k in range(shape3d[2]):
-#             numID = blockCache[(j,i,k)]
-#             x = area[0] + j
-#             z = area[1] + k
-#             y = minHeight + i
-#             if numID == 0:
-#                 interfaceUtils.setBlock(x, y, z, "air")
-#             elif numID == 1:
-#                 interfaceUtils.setBlock(x, y, z, "white_concrete")
-#             elif numID == 2: 
-#                 interfaceUtils.setBlock(x, y, z, "light_gray_concrete")
-#             else:
-#                 interfaceUtils.setBlock(x, y, z, "red_concrete")
-
-
-
-interfaceUtils.sendBlocks()
-
 
 cv2SizedWindow("railings", shape2d)
 cv2SizedWindow("bCache", shape2d)
@@ -778,6 +691,17 @@ lLamp = 15
 lPlatformCovered = 16
 lDoorstep = 17
 lClear = 18
+lIndoorAir2 = 19
+lIndoorCeiling = 20
+lLampSocket = 21
+
+magicPattern = np.array([[0,0,0,1],[0,1,0,0],[0,0,1,0],[1,0,0,0]], dtype=np.uint8)
+magicPatternTiled = np.tile(magicPattern, np.array(shape2d)//np.array(np.shape(magicPattern)) + 1)[tuple(map(slice, shape2d))]
+
+# lampPattern = np.array([[0,0,1,0,0],[0,0,0,0,0],[1,0,0,0,1],[0,0,0,0,0],[0,0,1,0,0],], dtype=np.uint8)
+lampPattern = np.array([[0,0,0,0,0],[0,0,0,0,0],[0,0,1,0,0],[0,0,0,0,0],[0,0,0,0,0],], dtype=np.uint8)
+lampPatternTiled = np.tile(lampPattern, np.array(shape2d)//np.array(np.shape(lampPattern)) + 1)[tuple(map(slice, shape2d))]
+
 
 def buildByCondition(condition, y, blockID):
     buildPositions = np.where(condition)
@@ -826,8 +750,8 @@ for i in range(0, maxHeight - minHeight - 1):
     # TODO is ocean floor the right heightmap?
     # layer = np.where(y < hmNew - 1, lGround, layer)
     # layer = np.where(y == hmNew - 1, lTopsoil, layer)
-    layer = np.where(y < hmNew, lGround, layer)
-    layer = np.where((layer == lGround) & (origKeepFree[:,i,:]), lClear, layer)
+    # layer = np.where(y < hmNew, lGround, layer)
+    # layer = np.where((layer == lGround) & (origKeepFree[:,i,:]), lClear, layer)
 
     layer = np.where((prevLayer == lPlatform) & (bCache == 0), lOutdoorFeet, layer)
     layer = np.where((prevLayer == lOutdoorFeet) & (bCache == 0), lOutdoorHead, layer)
@@ -841,6 +765,11 @@ for i in range(0, maxHeight - minHeight - 1):
     layer = np.where(indoors > 0, lIndoorFeet, layer)
     layer = np.where(prevLayer == lIndoorFeet, lIndoorHead, layer)
     layer = np.where(prevLayer == lIndoorHead, lIndoorAir, layer)
+
+    layer = np.where((prevLayer == lIndoorAir), lIndoorAir2, layer)
+
+    layer = np.where((prevLayer == lIndoorAir2) & (lampPatternTiled > 0), lLamp, layer)
+    layer = np.where((prevLayer == lIndoorAir2) & (layer != lLamp), lIndoorCeiling, layer)
 
     layer = np.where(bCache == lcDoorstep, lDoorstep, layer)
 
@@ -865,8 +794,6 @@ for i in range(0, maxHeight - minHeight - 1):
     layer = np.where((lampPotential > 0) & (magicPatternTiled > 0), lLamp, layer)
     # layer = np.where((lampPotential), lLamp, layer)
 
-    layer = np.where((prevLayer == lIndoorAir) & (rndNoise < .05), lLamp, layer)
-
     numberOfLamps += np.count_nonzero(layer == lLamp)
 
     layerCache[:,i,:] = layer
@@ -888,7 +815,7 @@ for i in range(0, maxHeight - minHeight - 1):
         # buildByCondition((layer == lPlatform) & (y+1 != pass1Heightmap), y, "blue_terracotta")
         # buildByCondition((layer == lPlatform) & (y+1 == pass1Heightmap), y, "grass_block")
         buildByCondition((layer == lOutdoorFeet) & (rndNoise < 0.25) , y, "gray_carpet")
-        buildByCondition((layer == lIndoorFeet) & (rndNoise < 0.25), y, "white_carpet")
+        # buildByCondition((layer == lIndoorFeet) & (rndNoise < 0.25), y, "white_carpet")
         # buildByCondition(layer == lOutdoorHead, y, "air")
         # buildByCondition(layer == lIndoorAir, y, "air")
         # buildByCondition(layer == lRailingHead, y, "air")
@@ -897,6 +824,9 @@ for i in range(0, maxHeight - minHeight - 1):
         buildByCondition(layer == lRailingFeet, y, "yellow_carpet")
         buildByCondition(layer == lWall, y, "gray_concrete")
         buildByCondition(layer == lLamp, y, "sea_lantern")
+        buildByCondition((layer == lLamp) & (prevLayer == lIndoorAir2), y-1, "crimson_trapdoor[half=top,open=false]")
+        buildByCondition(layer == lIndoorCeiling, y, "polished_blackstone_slab[type=top]")
+        buildByCondition(layer == lLampSocket, y, "polished_blackstone")
         buildByCondition(layer == lDoorstep, y, "polished_blackstone")
         buildByCondition(np.isin(layer, [lIndoorHead, lOutdoorHead, lIndoorAir, lRailingHead]), y, "air")
         buildByCondition((layer == lIndoorFeet) & (rndNoise >= 0.25), y, "air")
@@ -906,6 +836,108 @@ for i in range(0, maxHeight - minHeight - 1):
 print(f"number of lamps in the settlement: {numberOfLamps}")
 interfaceUtils.sendBlocks()
 cv2.destroyAllWindows()
+
+
+
+## Decoration ##
+
+cv2SizedWindow("buildings", shape2d)
+cv2SizedWindow("doorspace", shape2d)
+cv2SizedWindow("walkspace", shape2d)
+
+failedHouses = 0
+succeededHouses = 0
+
+for i in range(1, maxHeight - minHeight):
+    y = minHeight + i
+    buildings = (blockCache[:,i,:] == lcBuildingFoundation).astype(np.uint8)
+    imshowLabels(buildings, "buildings")
+
+    labelCount, buildingsLabels, _, centroids = cv2.connectedComponentsWithStats(buildings, connectivity=4)
+    buildingsLabels = buildingsLabels.astype(np.uint8)
+
+    # the first operation gets rid of the corners
+    wallsLabels = cv2.dilate(cv2.erode(buildingsLabels, strctCross), strctCross) - cv2.erode(buildingsLabels, strctCross)
+    # surroundingLabels = cv2.dilate(buildingsLabels, strctCross) - buildingsLabels
+    # lets start with the door
+    walkSpace = (np.isin(blockCache[:,i-1,:], [lcPlatform, lcStairs]) | (y <= flattenedHM)).astype(np.uint8)
+    walkSpace = traversibilityCheck(walkSpace, i, 2)
+    accesible = cv2.dilate(walkSpace, strctCross)
+    doorPotential = np.where(accesible > 0, wallsLabels, 0)
+
+    # another representation
+    furniture = np.zeros(shape2d, dtype=np.uint8)
+    distToEdge = cv2.distanceTransform(buildings, cv2.DIST_L1, 3)
+    blockedByDoors = np.zeros(shape2d, dtype=np.uint8)
+
+    imshowLabels(doorPotential, "doorspace")
+    imshowLabels(walkSpace, "walkspace")
+
+    rndNoise = noise(shape2d, shape2d)
+
+    # DOORS
+    for j in range(1, labelCount):
+        exitPositions = listWhere(doorPotential == j)
+        if len(exitPositions) > 0:
+            succeededHouses += 1
+            pos = exitPositions[randrange(len(exitPositions))]
+            blockCache[pos[0], i-1, pos[1]] = lcDoorstep
+            blockCache[pos[0], i:i+2, pos[1]] = lcDoor
+            blockedByDoors[pos[0], pos[1]] = 1
+            if BUILD:
+                # TODO let door face in correct direction
+                interfaceUtils.setBlock(area[0] + pos[0], y, area[1] + pos[1], "acacia_door[half=lower]")
+                interfaceUtils.setBlock(area[0] + pos[0], y+1, area[1] + pos[1], "acacia_door[half=upper]")
+        else:
+            failedHouses += 1
+            centroid = centroids[j]
+            print(f"House didn't find exit!!! at {area[0] + centroid[0]} {y} {area[1] + centroid[1]}")
+            # TODO do something better
+            continue
+
+    strctElmt = cv2.getStructuringElement(cv2.MORPH_CROSS, (5,5))
+    blockedByDoors = cv2.dilate(blockedByDoors, strctElmt)
+
+    # clutter
+    for cpos in zip(*np.where((distToEdge == 2) & (blockedByDoors == 0) & (rndNoise > .2))):
+        # blocked[cpos[0], cpos[1]] = 1
+        blockID = getSimpleRandomClutter()
+        if random() > 0.5:
+            interfaceUtils.setBlock(area[0] + cpos[0], y, area[1] + cpos[1], blockID)
+        else:
+            furnID = getFurnitureRandomClutter()
+            interfaceUtils.setBlock(area[0] + cpos[0], y, area[1] + cpos[1], furnID)
+            interfaceUtils.setBlock(area[0] + cpos[0], y+1, area[1] + cpos[1], blockID)
+
+ 
+    # cv2.waitKey(0 if buildingsLabels.max() > 0 else 1)
+    cv2.waitKey(1)
+
+print(f"buildings with doors: {succeededHouses} buildings without doors: {failedHouses}")
+
+cv2.destroyAllWindows()
+
+# cache test
+# print("Doing cache test, will nuke everything")
+# for i in range(shape3d[1]):
+#     for j in range(shape3d[0]):
+#         for k in range(shape3d[2]):
+#             numID = blockCache[(j,i,k)]
+#             x = area[0] + j
+#             z = area[1] + k
+#             y = minHeight + i
+#             if numID == 0:
+#                 interfaceUtils.setBlock(x, y, z, "air")
+#             elif numID == 1:
+#                 interfaceUtils.setBlock(x, y, z, "white_concrete")
+#             elif numID == 2: 
+#                 interfaceUtils.setBlock(x, y, z, "light_gray_concrete")
+#             else:
+#                 interfaceUtils.setBlock(x, y, z, "red_concrete")
+
+
+
+interfaceUtils.sendBlocks()
 
 while True:
     cmd = input(">")
