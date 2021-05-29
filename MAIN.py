@@ -432,7 +432,7 @@ for i in range(maxHeight - minHeight):
     # pathway maps
     if i > 0 and i < maxHeight - minHeight - 1:
         free = traversable[:,i,:] & traversable[:,i+1,:]
-        blockedByDoors = ~free
+        blocked = ~free
         ground = ~traversable[:,i-1,:] & free
         y = minHeight + i
 
@@ -487,7 +487,7 @@ for i in range(maxHeight - minHeight):
         # # cv2.imshow("combined", bgr)
 
         # visualize
-        r = blockedByDoors.astype(np.uint8) * 128 + normalizeUInt8(blockCache[:,i,:]) // 2
+        r = blocked.astype(np.uint8) * 128 + normalizeUInt8(blockCache[:,i,:]) // 2
         g = ground.astype(np.uint8) * 255 
         b = floor.astype(np.uint8) * int(255 / walkwayWidth)
         # b = (originalHeightmap > i + minHeight).astype(np.uint8) * 255
@@ -509,7 +509,7 @@ for i in range(maxHeight - minHeight):
         # build layer if necessary
         if floor.max() > 0:
             buildPositions = np.where(floor > 0)
-            foundation = np.where(diffToHM > 5, 0, diffToHM)
+            foundation = np.where(diffToHM > 1, 0, diffToHM)
             y = minHeight + i
             for p in zip(*buildPositions):
                 # y += -walkwayWidth + platform[p]
@@ -520,7 +520,7 @@ for i in range(maxHeight - minHeight):
                         interfaceUtils.setBlock(x, yy, z, "gray_concrete")
 
             lastLayerY = y # TODO kindaweird
-            lastLayer[0,:,:] = blockedByDoors.astype(np.uint8)
+            lastLayer[0,:,:] = blocked.astype(np.uint8)
             lastLayer[1,:,:] = ground.astype(np.uint8)
             lastLayer[2,:,:] = floor
         interfaceUtils.sendBlocks()
@@ -864,7 +864,6 @@ for i in range(0, maxHeight - minHeight - 1):
     layer = np.where((lampPotential > 0) & (magicPatternTiled > 0), lLamp, layer)
     # layer = np.where((lampPotential), lLamp, layer)
 
-    layerCache[:,i,:] = layer
 
     # TODO maybe modify block cache to fit labels
 
@@ -884,6 +883,7 @@ for i in range(0, maxHeight - minHeight - 1):
     cv2.waitKey(1)
 
     numberOfLamps += np.count_nonzero(layer == lLamp)
+    layerCache[:,i,:] = layer
 
     # build
     if BUILD:
@@ -918,7 +918,6 @@ interfaceUtils.sendBlocks()
 cv2.destroyAllWindows()
 
 
-
 ## Decoration / Interiors ##
 
 cv2SizedWindow("buildings", shape2d)
@@ -945,6 +944,8 @@ for i in range(1, maxHeight - minHeight):
     accesible = cv2.dilate(walkSpace, strctCross)
     doorPotential = np.where(accesible > 0, wallsLabels, 0)
 
+    peoplePotential = cv2.erode(buildings, strctCross) * buildingsLabels
+
     # another representation
     furniture = np.zeros(shape2d, dtype=np.uint8)
     distToEdge = cv2.distanceTransform(buildings, cv2.DIST_L1, 3)
@@ -955,9 +956,11 @@ for i in range(1, maxHeight - minHeight):
 
     rndNoise = noise(shape2d, shape2d)
 
-    # DOORS
+    # DOORS & people
     for j in range(1, labelCount):
         exitPositions = listWhere(doorPotential == j)
+        peoplePositions = listWhere(peoplePotential == j)
+
         if len(exitPositions) > 0:
             succeededHouses += 1
             pos = exitPositions[randrange(len(exitPositions))]
@@ -968,6 +971,15 @@ for i in range(1, maxHeight - minHeight):
                 # TODO let door face in correct direction
                 interfaceUtils.setBlock(area[0] + pos[0], y, area[1] + pos[1], "acacia_door[half=lower]")
                 interfaceUtils.setBlock(area[0] + pos[0], y+1, area[1] + pos[1], "acacia_door[half=upper]")
+
+            
+            if len(peoplePositions) > 0:
+                for _ in range(randint(1,4)):
+                    p = choice(peoplePositions)
+                    result = interfaceUtils.runCommand(f"summon villager {area[0] + p[0]} {y+1} {area[1] + p[1]}")
+                    print(f"summon villager {area[0] + p[0]} {y+1} {area[1] + p[1]}")
+                    print(result)
+
         else:
             failedHouses += 1
             centroid = centroids[j]
@@ -980,9 +992,15 @@ for i in range(1, maxHeight - minHeight):
 
     if BUILD:
         # clear some space
-        clearSpace = np.where((blockedByDoors > 0) & np.isin(layerCache[:,i,:], [lGrateSide]))
-        for p in zip(*clearSpace):
-            interfaceUtils.setBlock(area[0] + p[0], y, area[1] + p[1], "air")
+        for k in range(2):
+            if y+k < maxHeight:
+                # clearable = np.isin(layerCache[:,i+k,:], [lGrateSide]) | ((y+k <= flattenedHM) & (layerCache[:,i+k,:] == 0))
+                clearable = (layerCache[:,i+k,:] == lGrateSide) | ((y+k <= flattenedHM) & (blockCache[:,i+k,:] == 0))
+
+                clearSpace = np.where((blockedByDoors > 0) & clearable)
+                
+                for p in zip(*clearSpace):
+                    interfaceUtils.setBlock(area[0] + p[0], y+k, area[1] + p[1], "air")
 
         # clutter
         for cpos in zip(*np.where((distToEdge == 2) & (blockedByDoors == 0) & (rndNoise > .2))):
@@ -994,6 +1012,27 @@ for i in range(1, maxHeight - minHeight):
                 furnID = getFurnitureRandomClutter()
                 interfaceUtils.setBlock(area[0] + cpos[0], y, area[1] + cpos[1], furnID)
                 interfaceUtils.setBlock(area[0] + cpos[0], y+1, area[1] + cpos[1], blockID)
+        
+        
+    # beds        
+    for j in range(1, labelCount):
+        bedPositions = listWhere((distToEdge == 3) & (blockedByDoors == 0) & (buildingsLabels == j))
+
+        if len(bedPositions) > 0:
+            cpos = choice(bedPositions)
+            # blocked[cpos[0], cpos[1]] = 1
+            dir = randrange(4)
+            # CARDINALS = ["east", "south", "north", "west"]
+            card = CARDINALS[dir]
+            deltaX = [1,0,0,-1][dir]
+            deltaZ = [0,1,-1,0][dir]
+            col = choice(minecraft_colors)
+            blockID1 = f"{col}_bed[facing={card},part=foot]"
+            blockID2 = f"{col}_bed[facing={card},part=head]"
+
+            if BUILD:
+                interfaceUtils.setBlock(area[0] + cpos[0], y, area[1] + cpos[1], blockID1)
+                interfaceUtils.setBlock(area[0] + cpos[0] + deltaX, y, area[1] + cpos[1] + deltaZ, blockID2)
 
  
     # cv2.waitKey(0 if buildingsLabels.max() > 0 else 1)
