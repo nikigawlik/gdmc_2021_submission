@@ -977,8 +977,8 @@ for i in range(1, maxHeight - minHeight):
                 for _ in range(randint(1,4)):
                     p = choice(peoplePositions)
                     result = interfaceUtils.runCommand(f"summon villager {area[0] + p[0]} {y+1} {area[1] + p[1]}")
-                    print(f"summon villager {area[0] + p[0]} {y+1} {area[1] + p[1]}")
-                    print(result)
+                    # print(f"summon villager {area[0] + p[0]} {y+1} {area[1] + p[1]}")
+                    # print(result)
 
         else:
             failedHouses += 1
