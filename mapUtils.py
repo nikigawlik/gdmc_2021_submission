@@ -12,7 +12,7 @@ import time
 from math import atan2, ceil, log2
 
 import cv2
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 import numpy as np
 
 rng = np.random.default_rng()
@@ -86,18 +86,18 @@ def angleToCenter(shape):
 def normalize(array):
     return (array - array.min()) / (array.max() - array.min())
 
-def visualize(*arrays, title=None, autonormalize=True):
-    for array in arrays:
-        array = array * 1
-        if autonormalize:
-            array = (normalize(array) * 255).astype(np.uint8)
+# def visualize(*arrays, title=None, autonormalize=True):
+#     for array in arrays:
+#         array = array * 1
+#         if autonormalize:
+#             array = (normalize(array) * 255).astype(np.uint8)
 
-        plt.figure()
-        if title:
-            plt.title(title)
-        plt_image = cv2.cvtColor(array, cv2.COLOR_BGR2RGB)
-        imgplot = plt.imshow(plt_image)
-    plt.show()
+#         plt.figure()
+#         if title:
+#             plt.title(title)
+#         plt_image = cv2.cvtColor(array, cv2.COLOR_BGR2RGB)
+#         imgplot = plt.imshow(plt_image)
+#     plt.show()
 
 def showAnimationFrame(array, title=None, autonormalize=True):
     time.sleep(0.05)
@@ -138,25 +138,25 @@ def calcGoodHeightmap(worldSlice):
     return np.array(np.minimum(hm_mbnl, heightmapNoTrees))
 
 
-def visualize(*arrays, title=None, autonormalize=True):
-    """**Visualizes one or multiple numpy arrays**.
+# def visualize(*arrays, title=None, autonormalize=True):
+#     """**Visualizes one or multiple numpy arrays**.
 
-    Args:
-        title (str, optional): display title. Defaults to None.
-        autonormalize (bool, optional): Normalizes the array to be between
-                                        0 (black) and 255 (white).
-                                        Defaults to True.
-    """
-    for array in arrays:
-        if autonormalize:
-            array = (normalize(array) * 255).astype(np.uint8)
+#     Args:
+#         title (str, optional): display title. Defaults to None.
+#         autonormalize (bool, optional): Normalizes the array to be between
+#                                         0 (black) and 255 (white).
+#                                         Defaults to True.
+#     """
+#     for array in arrays:
+#         if autonormalize:
+#             array = (normalize(array) * 255).astype(np.uint8)
 
-        plt.figure()
-        if title:
-            plt.title(title)
-        plt_image = cv2.cvtColor(array, cv2.COLOR_BGR2RGB)
-        imgplot = plt.imshow(plt_image)  # NOQA
-    plt.show()
+#         plt.figure()
+#         if title:
+#             plt.title(title)
+#         plt_image = cv2.cvtColor(array, cv2.COLOR_BGR2RGB)
+#         imgplot = plt.imshow(plt_image)  # NOQA
+#     plt.show()
 
 
 def normalize(array):
