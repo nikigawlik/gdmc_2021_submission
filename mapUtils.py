@@ -8,11 +8,12 @@ This module contains functions to:
 __all__ = ['calcGoodHeightmap']
 # __version__
 
-import cv2
-import numpy as np
-import matplotlib.pyplot as plt
-from math import atan2, ceil, log2
 import time
+from math import atan2, ceil, log2
+
+import cv2
+import matplotlib.pyplot as plt
+import numpy as np
 
 rng = np.random.default_rng()
 

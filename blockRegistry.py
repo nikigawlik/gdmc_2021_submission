@@ -1,6 +1,5 @@
-
-
 from random import choice, randrange
+
 from interfaceUtils import sendDirect
 
 

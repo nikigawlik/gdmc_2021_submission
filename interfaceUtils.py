@@ -12,9 +12,11 @@ __all__ = ['Interface', 'requestBuildArea', 'runCommand',
 # __version__
 
 from random import randrange
-from numpy.lib.function_base import place
+
 import requests
+from numpy.lib.function_base import place
 from requests import ConnectionError
+
 from mapUtils import minecraft_colors
 
 session = requests.Session()

@@ -8,14 +8,16 @@ This module contains functions to:
 __all__ = ['WorldSlice']
 # __version__
 
+import time
 from io import BytesIO
 from math import ceil, log2
 
 import nbt
 import numpy as np
 import requests
-import time
+
 from bitarray import BitArray
+
 
 def getChunks(x, z, dx, dz, rtype='text'):
     """**Get raw chunk data**."""

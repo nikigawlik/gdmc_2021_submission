@@ -1,17 +1,16 @@
-from time import perf_counter
-from blockRegistry import getFurnitureRandomClutter, getSimpleRandomClutter, sendPattern
-import blockRegistry
 from functools import reduce
-from math import cos, sin
 from random import choice, randint, random, randrange
+from time import perf_counter
+
 import cv2
 import numpy as np
-from numpy.core.shape_base import block
-from mapUtils import calcGoodHeightmap, cv2SizedWindow, distanceToCenter, fractalnoise, imshowLabels, noise, normalize, normalizeUInt8, visualize, listWhere
+
 import interfaceUtils
+from blockRegistry import (getFurnitureRandomClutter, getSimpleRandomClutter)
+from mapUtils import (calcGoodHeightmap, cv2SizedWindow, distanceToCenter,
+                      fractalnoise, imshowLabels, listWhere, minecraft_colors,
+                      noise, normalize, normalizeUInt8)
 from worldLoader import WorldSlice
-from mapUtils import minecraft_woods, minecraft_colors
-import pptk
 
 # wow lets go
 
