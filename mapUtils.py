@@ -43,11 +43,14 @@ def fractalnoise(shape, minFreq=0, maxFreq=0):
 
     depth = ceil(log2(max(shape)))
 
+    minFreq %= depth
+    maxFreq %= depth
+
     noise = np.zeros((1,1), dtype = np.float64)
 
     for i in range(depth):
         noise = cv2.pyrUp(noise)
-        if i >= minFreq and i < (depth - maxFreq):
+        if i >= minFreq and i <= maxFreq:
             # noise = rng.integers(0, 128**(1/(i+1)), img.size, dtype = 'uint8')
             noiseLayer = rng.random(noise.size, dtype = np.float64)
             noiseLayer = noiseLayer * 2**(-(i+1))
@@ -70,13 +73,13 @@ def distanceToCenter(shape):
     if len(shape) != 2:
         raise ValueError("Shape needs to have length 2. Only 2d is supported")
     
-    return np.array([[((x/shape[0]-0.5)**2 + (y/shape[1]-0.5)**2)**0.5 for x in range(shape[0])] for y in range(shape[1])])
+    return np.array([[((x/shape[0]-0.5)**2 + (y/shape[1]-0.5)**2)**0.5 for x in range(shape[1])] for y in range(shape[0])])
 
 def angleToCenter(shape):
     if len(shape) != 2:
         raise ValueError("Shape needs to have length 2. Only 2d is supported")
     
-    return np.array([[atan2(y/shape[1]-0.5, x/shape[0]-0.5) for x in range(shape[0])] for y in range(shape[1])])
+    return np.array([[atan2(y/shape[1]-0.5, x/shape[0]-0.5) for x in range(shape[1])] for y in range(shape[0])])
 
 
 def normalize(array):
@@ -164,9 +167,6 @@ def normalize(array):
     else:
         return (array - array.min()) / difference
 
-def normalizeUInt8(array):
-    """**Normalize the array to contain values from 0 to 255 as a uint8 type**."""
-    return (normalize(array) * 255).astype(np.uint8)
 
 
 def listWhere(array): 
@@ -177,5 +177,9 @@ def cv2SizedWindow(name, shape, height=512):
     cv2.namedWindow(name, 0)
     cv2.resizeWindow(name, int(shape[1] / shape[0] * height), height)
 
-def imshowLabels(array, windowName = "labels", colorMap = cv2.COLORMAP_INFERNO):
+def normalizeUInt8(array):
+    """**Normalize the array to contain values from 0 to 255 as a uint8 type**."""
+    return (normalize(array) * 255).astype(np.uint8)
+
+def imshowLabels(windowName, array, colorMap = cv2.COLORMAP_INFERNO):
     cv2.imshow(windowName, cv2.applyColorMap(normalizeUInt8(array), colorMap))
